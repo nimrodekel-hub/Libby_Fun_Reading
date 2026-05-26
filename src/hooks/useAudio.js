@@ -22,8 +22,8 @@ function buildUtterance(text, onEnd) {
   const voice = getBestVoice();
   if (voice) u.voice = voice;
   u.lang   = 'he-IL';
-  u.rate   = 0.65;
-  u.pitch  = 1.1;
+  u.rate   = 0.6;
+  u.pitch  = 1.0;
   u.volume = 1.0;
   if (onEnd) { u.onend = onEnd; u.onerror = onEnd; }
   return u;

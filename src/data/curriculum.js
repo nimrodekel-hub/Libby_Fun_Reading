@@ -140,6 +140,7 @@ function makeOptions(lesson, targetType) {
     .map(type => ({
       nikudType: type,
       display:   lesson.nikud[type].display,
+      example:   lesson.nikud[type].example,
       isCorrect: type === targetType,
     }));
 }

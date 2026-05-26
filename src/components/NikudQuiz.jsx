@@ -112,9 +112,9 @@ export default function NikudQuiz({
                 {feedback && isCorrectOpt ? '✓' : feedback && isSelected ? '✗' : idx + 1}
               </div>
 
-              {/* Speaker button */}
+              {/* Speaker button — play full example word for clear vowel sound */}
               <button
-                onClick={(e) => { e.stopPropagation(); playText(opt.display); }}
+                onClick={(e) => { e.stopPropagation(); playText(opt.example?.replace(/[^֐-׿\s]/g, '').trim() || opt.display); }}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl
                            bg-gradient-to-r from-blue-100 to-indigo-100
                            hover:from-blue-200 hover:to-indigo-200
