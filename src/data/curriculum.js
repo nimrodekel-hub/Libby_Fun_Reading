@@ -109,16 +109,33 @@ export const LETTER_LESSONS = [
   },
 ];
 
-/** Pick 4 quiz options: the correct answer + its group sibling + 2 random others */
+/**
+ * Pick 4 sound-distinct options: one representative per group.
+ * KAMATZ/PATACH sound identical, as do SEGOL/TZERE — so we never
+ * put both from the same group as separate options.
+ * Priority: always contrast A↔E since that's the core learning goal.
+ */
 function makeOptions(lesson, targetType) {
-  const sibling = NIKUD_ORDER.find(
-    t => t !== targetType && NIKUD_META[t].group === NIKUD_META[targetType].group
-  );
-  const others = NIKUD_ORDER.filter(t => t !== targetType && t !== sibling)
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 2);
-  return [targetType, sibling, ...others]
-    .filter(Boolean)
+  const targetGroup = NIKUD_META[targetType].group;
+
+  // Groups to use as distractors — exclude the target's own group.
+  // Always put the "opposite" group (A↔E) first so it's always included.
+  const opposite = targetGroup === 'A' ? 'E' : targetGroup === 'E' ? 'A' : null;
+  const others   = ['A', 'E', 'I', 'O', 'U']
+    .filter(g => g !== targetGroup)
+    .sort((a, b) => {
+      if (a === opposite) return -1;
+      if (b === opposite) return 1;
+      return Math.random() - 0.5;
+    })
+    .slice(0, 3); // 3 distractors → 4 options total
+
+  const distractors = others.map(group => {
+    const candidates = NIKUD_ORDER.filter(t => NIKUD_META[t].group === group);
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  });
+
+  return [targetType, ...distractors]
     .sort(() => Math.random() - 0.5)
     .map(type => ({
       nikudType: type,

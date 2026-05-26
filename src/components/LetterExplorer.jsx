@@ -23,7 +23,7 @@ export default function LetterExplorer({ lesson, heardSet, onHear, onGoToQuiz, c
       </div>
 
       {/* Nikud grid — 2 columns, last tile centered when count is odd */}
-      <div className="grid grid-cols-2 gap-4 w-full">
+      <div className="grid grid-cols-2 gap-3 w-full">
         {NIKUD_ORDER.map((type, i) => {
           const isLast = isOdd && i === NIKUD_ORDER.length - 1;
           return (
