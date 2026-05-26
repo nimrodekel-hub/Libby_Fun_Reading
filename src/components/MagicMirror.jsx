@@ -1,6 +1,6 @@
 import LetterCard from './LetterCard';
 
-export default function MagicMirror({ card, phase, showHint, playAudio }) {
+export default function MagicMirror({ card, phase, showHint }) {
   return (
     <div className="relative flex flex-col items-center">
       {/* Mirror frame */}
@@ -21,7 +21,7 @@ export default function MagicMirror({ card, phase, showHint, playAudio }) {
           {/* Card area */}
           <div className="flex items-center justify-center min-h-[380px] min-w-[300px]">
             {card
-              ? <LetterCard card={card} phase={phase} showHint={showHint} playAudio={playAudio} />
+              ? <LetterCard card={card} phase={phase} showHint={showHint} />
               : (
                 <div className="text-center text-purple-300 text-5xl animate-pulse-slow">
                   ✨
