@@ -106,13 +106,16 @@ export default function SpeechChallenge({ lesson, onComplete }) {
     recognitionRef.current = null;
   }, []);
 
-  // Stop mic on unmount and whenever the tab/app goes to background
+  // Stop mic on unmount, tab hide, and page unload (covers refresh + close)
   useEffect(() => {
-    function onHide() { if (document.hidden) stopMic(); }
+    function onHide()   { if (document.hidden) stopMic(); }
+    function onUnload() { stopMic(); }
     document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onUnload);
     return () => {
       stopMic();
       document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onUnload);
     };
   }, [stopMic]);
 
@@ -124,6 +127,7 @@ export default function SpeechChallenge({ lesson, onComplete }) {
   const exWord      = extractExampleWord(currentData.example); // e.g. "נחש"
 
   const startListening = useCallback(() => {
+    stopMic(); // release any previous session before opening a new one
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { setStatus(STATUS.unsupported); return; }
 
@@ -135,6 +139,7 @@ export default function SpeechChallenge({ lesson, onComplete }) {
     rec.onstart = () => setStatus(STATUS.listening);
 
     rec.onerror = () => {
+      stopMic();
       setAttempts(n => n + 1);
       setStatus(STATUS.fail);
     };
@@ -154,6 +159,7 @@ export default function SpeechChallenge({ lesson, onComplete }) {
       const top = e.results[0][0].transcript.trim();
       setLastWord(top);
       const matched = checkMatch(top, currentMeta.group, exWord);
+      stopMic(); // release mic immediately after result — don't wait for onend
       if (matched) {
         setStatus(STATUS.success);
         setEarned(n => n + 5);
@@ -166,9 +172,10 @@ export default function SpeechChallenge({ lesson, onComplete }) {
     recognitionRef.current = rec;
     rec.start();
     setStatus(STATUS.listening);
-  }, [currentData, currentMeta, exWord]);
+  }, [currentData, currentMeta, exWord, stopMic]);
 
   function advance() {
+    stopMic();
     const next = tileIdx + 1;
     setAttempts(0);
     setLastWord('');
