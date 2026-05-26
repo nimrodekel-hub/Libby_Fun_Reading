@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Global RTL + Hebrew font setup ───────────────────────────── */
+html, body {
+  direction: rtl;
+  font-family: 'Rubik', 'Assistant', sans-serif;
+  background: #FDF4FF;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Ensure nikud (Hebrew vowel diacritics) renders with ample vertical space */
+.font-rubik,
+.font-assistant {
+  font-feature-settings: "kern" 1;
+  text-rendering: optimizeLegibility;
+}
+
+/* Utility: Hebrew text with generous nikud spacing */
+.hebrew-nikud {
+  line-height: 1.5;
+  letter-spacing: 0.05em;
+}
+
+/* Custom scrollbar (subtle) */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track  { background: #F3E8FF; }
+::-webkit-scrollbar-thumb  { background: #C084FC; border-radius: 3px; }
