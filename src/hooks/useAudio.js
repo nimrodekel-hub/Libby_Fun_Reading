@@ -1,55 +1,83 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { getRecording } from '../utils/audioStorage';
 
+// Load voices immediately and on change (voices load async in browsers)
+function initVoices() {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+}
+
+function getBestVoice() {
+  const voices = window.speechSynthesis?.getVoices() ?? [];
+  return (
+    voices.find(v => v.lang === 'he-IL') ||
+    voices.find(v => v.lang.startsWith('he')) ||
+    null
+  );
+}
+
+function buildUtterance(text, onEnd) {
+  const u = new SpeechSynthesisUtterance(text);
+  const voice = getBestVoice();
+  if (voice) u.voice = voice;
+  u.lang   = 'he-IL';
+  u.rate   = 0.65;
+  u.pitch  = 1.1;
+  u.volume = 1.0;
+  if (onEnd) { u.onend = onEnd; u.onerror = onEnd; }
+  return u;
+}
+
 export function useAudio() {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef(null);
+  const audioRef     = useRef(null);
+  const isPlayingRef = useRef(false);
 
-  const playCardAudio = useCallback(async (card) => {
-    if (!card || isPlaying) return;
+  useEffect(() => { initVoices(); }, []);
 
-    // Stop any in-progress audio
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+  const stopAll = useCallback(() => {
+    audioRef.current?.pause();
+    audioRef.current = null;
     window.speechSynthesis?.cancel();
+    isPlayingRef.current = false;
+  }, []);
 
-    setIsPlaying(true);
+  // Play an arbitrary Hebrew text string (used by unicorn "hear me" buttons)
+  const playText = useCallback((text) => {
+    if (!text || !('speechSynthesis' in window)) return;
+    stopAll();
+    isPlayingRef.current = true;
+    const u = buildUtterance(text, () => { isPlayingRef.current = false; });
+    window.speechSynthesis.speak(u);
+  }, [stopAll]);
 
-    // Priority 1: parent recording in IndexedDB
+  // Play a card: IndexedDB recording first, then TTS
+  const playCardAudio = useCallback(async (card) => {
+    if (!card) return;
+    stopAll();
+    isPlayingRef.current = true;
+
+    // Priority 1: parent recording
     try {
       const stored = await getRecording(card.id);
       if (stored) {
         const audio = new Audio(stored);
-        audioRef.current = audio;
-        audio.onended  = () => setIsPlaying(false);
-        audio.onerror  = () => setIsPlaying(false);
+        audioRef.current  = audio;
+        audio.onended = () => { isPlayingRef.current = false; };
+        audio.onerror = () => { isPlayingRef.current = false; };
         await audio.play();
         return;
       }
-    } catch {
-      // fall through to TTS
-    }
+    } catch { /* fall through */ }
 
-    // Priority 2: Web Speech API (TTS fallback)
+    // Priority 2: TTS
     if ('speechSynthesis' in window) {
-      // Prefer the full phonetic text for letter cards, display for word cards
-      const text =
-        card.cardType === 'word'
-          ? card.display
-          : (card.phonetic?.split(' ')[0] ?? card.display);
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang  = 'he-IL';
-      utterance.rate  = 0.75;
-      utterance.pitch = 1.1;
-      utterance.onend = () => setIsPlaying(false);
-      window.speechSynthesis.speak(utterance);
+      const u = buildUtterance(card.display, () => { isPlayingRef.current = false; });
+      window.speechSynthesis.speak(u);
     } else {
-      setIsPlaying(false);
+      isPlayingRef.current = false;
     }
-  }, [isPlaying]);
+  }, [stopAll]);
 
-  return { playCardAudio, isPlaying };
+  return { playCardAudio, playText, stopAll };
 }
