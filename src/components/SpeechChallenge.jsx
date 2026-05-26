@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useAudio } from '../hooks/useAudio';
 import { NIKUD_META, NIKUD_ORDER } from '../data/curriculum';
 
@@ -94,6 +94,27 @@ export default function SpeechChallenge({ lesson, onComplete }) {
   const [earned,   setEarned]   = useState(0);
   const [lastWord, setLastWord] = useState('');   // last SR transcript for debug hint
   const recognitionRef = useRef(null);
+
+  // Cleanly abort any active recognition session without triggering state updates
+  const stopMic = useCallback(() => {
+    const rec = recognitionRef.current;
+    if (!rec) return;
+    rec.onresult = null;
+    rec.onerror  = null;
+    rec.onend    = null;
+    try { rec.abort(); } catch { /* already stopped */ }
+    recognitionRef.current = null;
+  }, []);
+
+  // Stop mic on unmount and whenever the tab/app goes to background
+  useEffect(() => {
+    function onHide() { if (document.hidden) stopMic(); }
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      stopMic();
+      document.removeEventListener('visibilitychange', onHide);
+    };
+  }, [stopMic]);
 
   const currentType = NIKUD_ORDER[tileIdx];
   const currentData = lesson.nikud[currentType];
