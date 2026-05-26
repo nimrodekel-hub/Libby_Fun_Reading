@@ -12,24 +12,49 @@ const GROUP_COLORS = {
 const STATUS = { idle: 'idle', listening: 'listening', success: 'success', fail: 'fail', unsupported: 'unsupported' };
 
 /**
- * Tries to match what the child said against the expected Hebrew syllable.
- * Returns true if the spoken text contains the target display character or
- * sounds phonetically similar (basic vowel-group check).
+ * Match the child's spoken transcript against the expected nikud group.
+ *
+ * Speech recognition (he-IL) returns plain Hebrew WITHOUT nikud marks.
+ * The key vowel signals in the transcript are:
+ *   י (yod)  → "ee" sound  → group I (hirik)
+ *   ו (vav)  → "oh/oo" sound → groups O / U
+ *   neither  → "ah/eh" sound → groups A / E
+ *
+ * Rules are mutually exclusive so I ≠ E:
+ *   I   requires י, rejects ו
+ *   O/U requires ו, rejects י
+ *   A/E rejects both י and ו  (A and E can't be distinguished reliably
+ *       from a single syllable — both accepted for either target)
  */
 function checkMatch(transcript, targetDisplay, targetGroup) {
   const t = transcript.trim();
   if (!t) return false;
-  // Direct containment check
-  if (t.includes(targetDisplay.trim())) return true;
-  // Vowel-group heuristic: map Hebrew letters to vowel sounds
-  const groupHints = {
-    A: ['א', 'ָ', 'ַ', 'a', 'A'],
-    E: ['ֶ', 'ֵ', 'e', 'E', 'י'],
-    I: ['ִ', 'i', 'I', 'י'],
-    O: ['ֹ', 'ו', 'o', 'O'],
-    U: ['ֻ', 'u', 'U', 'ו'],
-  };
-  return groupHints[targetGroup]?.some(h => t.includes(h)) ?? false;
+
+  // If recognition returned the actual nikud character, accept immediately
+  const cleanDisplay = targetDisplay.replace(/\s/g, '');
+  if (t.includes(cleanDisplay)) return true;
+
+  // Strip nikud marks (U+0591–U+05C7) to get the base consonant
+  const baseConsonant = cleanDisplay.replace(/[֑-ׇ]/g, '');
+
+  // Reject outright if the expected consonant isn't in the transcript
+  if (baseConsonant && !t.includes(baseConsonant)) return false;
+
+  const hasYod = /י/.test(t);
+  const hasVav = /ו/.test(t);
+
+  switch (targetGroup) {
+    case 'I':
+      return hasYod && !hasVav;   // "ee" → must have י, must not have ו
+    case 'O':
+    case 'U':
+      return hasVav && !hasYod;   // "oh/oo" → must have ו, must not have י
+    case 'A':
+    case 'E':
+      return !hasYod && !hasVav;  // "ah/eh" → no strong vowel marker
+    default:
+      return false;
+  }
 }
 
 export default function SpeechChallenge({ lesson, onComplete }) {
