@@ -1,80 +1,114 @@
-import LessonPage from './LessonPage';
-import StarsBurst  from './StarsBurst';
+import { useState } from 'react';
+import LessonPage      from './LessonPage';
+import MagicBackground from './MagicBackground';
+import ConfettiBurst   from './ConfettiBurst';
 import { useLessonState } from '../hooks/useLessonState';
 
 export default function GameBoard() {
   const state = useLessonState();
 
-  // "Done" screen after all lessons
   if (state.phase === 'done') {
     return <DoneScreen score={state.score} right={state.totalRight} wrong={state.totalWrong} restart={state.restart} />;
   }
 
   return (
-    <>
-      <LessonPage
-        lesson={state.lesson}
-        lessonIdx={state.lessonIdx}
-        totalLessons={state.totalLessons}
-        phase={state.phase}
-        heardSet={state.heardSet}
-        markHeard={state.markHeard}
-        canGoToQuiz={state.canGoToQuiz}
-        goToQuiz={state.goToQuiz}
-        question={state.question}
-        qIdx={state.qIdx}
-        totalQuestions={state.totalQuestions}
-        selected={state.selected}
-        setSelected={state.setSelected}
-        qFeedback={state.qFeedback}
-        submitAnswer={state.submitAnswer}
-        onSpeechComplete={state.onSpeechComplete}
-        score={state.score}
-      />
-      <StarsBurst stars={[]} />
-    </>
+    <LessonPage
+      lesson={state.lesson}
+      lessonIdx={state.lessonIdx}
+      totalLessons={state.totalLessons}
+      phase={state.phase}
+      heardSet={state.heardSet}
+      markHeard={state.markHeard}
+      canGoToQuiz={state.canGoToQuiz}
+      goToQuiz={state.goToQuiz}
+      question={state.question}
+      qIdx={state.qIdx}
+      totalQuestions={state.totalQuestions}
+      selected={state.selected}
+      setSelected={state.setSelected}
+      qFeedback={state.qFeedback}
+      submitAnswer={state.submitAnswer}
+      onSpeechComplete={state.onSpeechComplete}
+      score={state.score}
+    />
   );
 }
 
 function DoneScreen({ score, right, wrong, restart }) {
   const total = right + wrong;
   const pct   = total > 0 ? Math.round((right / total) * 100) : 0;
+  const [confetti, setConfetti] = useState(true);
+
+  const stars = pct >= 90 ? 3 : pct >= 60 ? 2 : 1;
 
   return (
     <div dir="rtl" className="min-h-screen flex flex-col items-center justify-center
                                bg-gradient-to-br from-magic-lavender via-magic-pink to-magic-cream
-                               font-rubik px-4">
-      <div className="bg-white/90 rounded-3xl border-4 border-purple-300 shadow-2xl p-10 text-center max-w-sm w-full">
-        <div className="text-8xl mb-4 animate-bounce-slow">🏆</div>
-        <h2 className="text-3xl font-black text-purple-700 mb-1">כׇּל הַכָּבוֹד, לִיבִּי!</h2>
-        <p className="text-purple-400 font-assistant mb-5">סִיַּמְתְּ אֶת כׇּל הָאוֹתִיּוֹת!</p>
+                               font-rubik px-4 relative overflow-hidden">
+      <MagicBackground />
+      <ConfettiBurst active={confetti} count={60} onDone={() => setConfetti(false)} />
 
-        <div className="grid grid-cols-3 gap-3 mb-5">
-          <Stat emoji="👑" value={score} label="נְקוּדוֹת"  color="amber" />
-          <Stat emoji="✅" value={right} label="נָכוֹן"     color="green" />
-          <Stat emoji="⭐" value={`${pct}%`} label="הַצְלָחָה" color="purple" />
+      {/* Trophy + text */}
+      <div className="relative z-10 w-full max-w-sm animate-slide-up">
+        {/* Glowing card */}
+        <div className="rounded-[2rem] p-8 text-center"
+             style={{
+               background: 'rgba(255,255,255,0.92)',
+               border: '4px solid rgba(216,180,254,0.7)',
+               boxShadow: '0 20px 60px rgba(168,85,247,0.25), 0 4px 16px rgba(0,0,0,0.08)',
+             }}>
+
+          {/* Trophy */}
+          <div className="text-8xl mb-3 animate-bounce-slow">🏆</div>
+
+          {/* Star rating */}
+          <div className="flex justify-center gap-1 mb-3">
+            {[1,2,3].map(n => (
+              <span key={n} className={`text-4xl transition-all ${n <= stars ? 'animate-wiggle' : 'opacity-25 grayscale'}`}
+                    style={{ animationDelay: `${n * 0.15}s` }}>
+                ⭐
+              </span>
+            ))}
+          </div>
+
+          <h2 className="text-3xl font-black text-purple-700 mb-1">כׇּל הַכָּבוֹד, לִיבִּי!</h2>
+          <p className="text-purple-400 font-assistant mb-5 text-sm">סִיַּמְתְּ אֶת כׇּל הָאוֹתִיּוֹת! 🎉</p>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <Stat emoji="👑" value={score}     label="נְקוּדוֹת"  color="amber"  />
+            <Stat emoji="✅" value={right}     label="נָכוֹן"     color="green"  />
+            <Stat emoji="🌟" value={`${pct}%`} label="הַצְלָחָה" color="purple" />
+          </div>
+
+          {/* Restart */}
+          <button
+            onClick={restart}
+            className="w-full py-4 rounded-2xl text-white text-xl font-black
+                       hover:scale-105 hover:-translate-y-1 active:scale-95 transition-all"
+            style={{
+              background: 'linear-gradient(135deg, #9333ea, #ec4899)',
+              boxShadow: '0 8px 28px rgba(147,51,234,0.45)',
+            }}
+          >
+            🎮 שַׂחֲקִי שׁוּב!
+          </button>
         </div>
-
-        <button
-          onClick={restart}
-          className="w-full py-4 rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500
-                     text-white text-xl font-black shadow-lg hover:scale-105 active:scale-95 transition-transform"
-        >
-          🎮 שַׂחֲקִי שׁוּב!
-        </button>
       </div>
     </div>
   );
 }
 
 function Stat({ emoji, value, label, color }) {
-  const cls = {
-    amber:  'bg-amber-50  border-amber-200  text-amber-700',
-    green:  'bg-green-50  border-green-200  text-green-700',
-    purple: 'bg-purple-50 border-purple-200 text-purple-700',
+  const styles = {
+    amber:  { bg: 'rgba(255,251,235,0.9)', border: '#FCD34D', text: '#B45309' },
+    green:  { bg: 'rgba(240,253,244,0.9)', border: '#6EE7B7', text: '#065F46' },
+    purple: { bg: 'rgba(245,243,255,0.9)', border: '#C4B5FD', text: '#6D28D9' },
   }[color];
+
   return (
-    <div className={`flex flex-col items-center p-3 rounded-2xl border-2 ${cls}`}>
+    <div className="flex flex-col items-center p-3 rounded-2xl animate-pop-in"
+         style={{ background: styles.bg, border: `2px solid ${styles.border}`, color: styles.text }}>
       <span className="text-2xl">{emoji}</span>
       <span className="text-xl font-black">{value}</span>
       <span className="text-xs font-assistant">{label}</span>
