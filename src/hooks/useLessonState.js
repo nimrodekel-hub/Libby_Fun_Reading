@@ -85,7 +85,7 @@ export function useLessonState() {
   return {
     lesson, lessonIdx, totalLessons: lessons.length,
     phase,
-    heardSet, markHeard, canGoToQuiz: heardSet.size >= 3,
+    heardSet, markHeard, canGoToQuiz: heardSet.size >= 7,
     goToQuiz,
     goToSpeech,
     question, qIdx, totalQuestions: questions.length,

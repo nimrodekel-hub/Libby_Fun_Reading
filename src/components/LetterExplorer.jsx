@@ -1,7 +1,7 @@
 import NikudTile from './NikudTile';
 import { NIKUD_ORDER } from '../data/curriculum';
 
-const HEAR_THRESHOLD = 3;
+const HEAR_THRESHOLD = 7;
 
 export default function LetterExplorer({ lesson, heardSet, onHear, onGoToQuiz, canGoToQuiz }) {
   const isOdd     = NIKUD_ORDER.length % 2 !== 0;

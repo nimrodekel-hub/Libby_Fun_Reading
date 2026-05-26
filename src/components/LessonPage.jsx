@@ -25,7 +25,7 @@ export default function LessonPage({
   const progress = ((lessonIdx + (phase !== 'explore' ? 0.5 : 0)) / totalLessons) * 100;
 
   return (
-    <div dir="rtl" className="min-h-screen flex flex-col font-rubik
+    <div dir="rtl" className="min-h-screen flex flex-col font-rubik overflow-x-hidden
                                bg-gradient-to-br from-magic-lavender via-magic-pink to-magic-cream relative">
       <MagicBackground />
 
@@ -54,7 +54,7 @@ export default function LessonPage({
           {/* Letter badge */}
           <div className="flex flex-col items-center flex-shrink-0">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center font-black font-rubik text-purple-800 text-3xl
-                            border-3 border-purple-300 shadow-md"
+                            border-2 border-purple-300 shadow-md"
                  style={{ background: 'linear-gradient(135deg, #f5f3ff, #fce7f3)', boxShadow: '0 4px 16px rgba(168,85,247,0.2)' }}
                  dir="rtl">
               {lesson.base}
