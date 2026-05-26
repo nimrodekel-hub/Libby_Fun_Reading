@@ -14,7 +14,7 @@ export const LETTER_LESSONS = [
   {
     id: 'bet', base: 'בּ', name: 'בֵּית', emoji: '🏠',
     nikud: {
-      KAMATZ: { display: 'בָּ', phonetic: 'בָּ',  example: 'בָּרָז 🚰' },
+      KAMATZ: { display: 'בָּ', phonetic: 'בָּ',  example: 'בָּצָל 🧅' },
       PATACH: { display: 'בַּ', phonetic: 'בַּ',  example: 'בַּיִת 🏠' },
       SEGOL:  { display: 'בֶּ', phonetic: 'בֶּ',  example: 'בֶּגֶד 👗' },
       TZERE:  { display: 'בֵּ', phonetic: 'בֵּ',  example: 'בֵּיצָה 🥚' },
@@ -29,7 +29,7 @@ export const LETTER_LESSONS = [
       KAMATZ: { display: 'מָ', phonetic: 'מָ',  example: 'מָגֵן 🛡️' },
       PATACH: { display: 'מַ', phonetic: 'מַ',  example: 'מַלְכָּה 👸' },
       SEGOL:  { display: 'מֶ', phonetic: 'מֶ',  example: 'מֶלֶךְ 🤴' },
-      TZERE:  { display: 'מֵ', phonetic: 'מֵ',  example: 'מֵנוֹרָה 🕎' },
+      TZERE:  { display: 'מֵ', phonetic: 'מֵ',  example: 'מֵאָה 💯' },
       HIRIK:  { display: 'מִ', phonetic: 'מִ',  example: 'מִגְדָּל 🗼' },
       HOLAM:  { display: 'מֹ', phonetic: 'מֹ',  example: 'מֹשֶׁה 👦' },
       KUBUTZ: { display: 'מֻ', phonetic: 'מֻ',  example: 'מֻצֶּצֶת 🍭' },
@@ -52,8 +52,8 @@ export const LETTER_LESSONS = [
     nikud: {
       KAMATZ: { display: 'סָ', phonetic: 'סָ',  example: 'סָבָא 👴' },
       PATACH: { display: 'סַ', phonetic: 'סַ',  example: 'סַל 🧺' },
-      SEGOL:  { display: 'סֶ', phonetic: 'סֶ',  example: 'סֶפֶר 📚' },
-      TZERE:  { display: 'סֵ', phonetic: 'סֵ',  example: 'סֵיר 🍲' },
+      SEGOL:  { display: 'סֶ', phonetic: 'סֶ',  example: 'סֶרֶט 🎬' },
+      TZERE:  { display: 'סֵ', phonetic: 'סֵ',  example: 'סֵפֶר 📖' },
       HIRIK:  { display: 'סִ', phonetic: 'סִ',  example: 'סִירָה ⛵' },
       HOLAM:  { display: 'סֹ', phonetic: 'סֹ',  example: 'סֹד 🤫' },
       KUBUTZ: { display: 'סֻ', phonetic: 'סֻ',  example: 'סֻכָּה 🌿' },
