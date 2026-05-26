@@ -28,6 +28,7 @@ export default function GameBoard() {
         setSelected={state.setSelected}
         qFeedback={state.qFeedback}
         submitAnswer={state.submitAnswer}
+        onSpeechComplete={state.onSpeechComplete}
         score={state.score}
       />
       <StarsBurst stars={[]} />

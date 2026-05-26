@@ -4,25 +4,23 @@ import { shuffleLessons, generateQuestions } from '../data/curriculum';
 export function useLessonState() {
   const [lessons]       = useState(shuffleLessons);
   const [lessonIdx,  setLessonIdx]  = useState(0);
-  const [phase,      setPhase]      = useState('explore'); // explore | quiz | done
+  const [phase,      setPhase]      = useState('explore'); // explore | quiz | speech | done
   const [heardSet,   setHeardSet]   = useState(new Set());
   const [questions,  setQuestions]  = useState([]);
   const [qIdx,       setQIdx]       = useState(0);
-  const [selected,   setSelected]   = useState(null);   // nikudType string
-  const [qFeedback,  setQFeedback]  = useState(null);   // 'correct' | 'wrong' | null
+  const [selected,   setSelected]   = useState(null);
+  const [qFeedback,  setQFeedback]  = useState(null);
   const [score,      setScore]      = useState(0);
   const [totalRight, setTotalRight] = useState(0);
   const [totalWrong, setTotalWrong] = useState(0);
 
-  const lesson  = lessons[lessonIdx] ?? null;
-  const question = questions[qIdx]  ?? null;
+  const lesson   = lessons[lessonIdx] ?? null;
+  const question = questions[qIdx]    ?? null;
 
-  // Mark a nikud as heard during explore
   const markHeard = useCallback((nikudType) => {
     setHeardSet(prev => new Set([...prev, nikudType]));
   }, []);
 
-  // Transition from explore → quiz
   const goToQuiz = useCallback(() => {
     if (!lesson) return;
     setQuestions(generateQuestions(lesson));
@@ -32,7 +30,21 @@ export function useLessonState() {
     setPhase('quiz');
   }, [lesson]);
 
-  // Submit current quiz answer
+  const goToSpeech = useCallback(() => setPhase('speech'), []);
+
+  const advanceLesson = useCallback(() => {
+    const nextL = lessonIdx + 1;
+    if (nextL < lessons.length) {
+      setLessonIdx(nextL);
+      setHeardSet(new Set());
+      setPhase('explore');
+      setQuestions([]);
+      setQIdx(0);
+    } else {
+      setPhase('done');
+    }
+  }, [lessonIdx, lessons.length]);
+
   const submitAnswer = useCallback(() => {
     if (!question || !selected || qFeedback) return;
     const correct = selected === question.targetType;
@@ -47,20 +59,15 @@ export function useLessonState() {
       if (nextQ < questions.length) {
         setQIdx(nextQ);
       } else {
-        // Move to next lesson
-        const nextL = lessonIdx + 1;
-        if (nextL < lessons.length) {
-          setLessonIdx(nextL);
-          setHeardSet(new Set());
-          setPhase('explore');
-          setQuestions([]);
-          setQIdx(0);
-        } else {
-          setPhase('done');
-        }
+        setPhase('speech');
       }
     }, 1200);
-  }, [question, selected, qFeedback, qIdx, questions.length, lessonIdx, lessons.length]);
+  }, [question, selected, qFeedback, qIdx, questions.length]);
+
+  const onSpeechComplete = useCallback((bonusPoints) => {
+    setScore(s => s + bonusPoints);
+    advanceLesson();
+  }, [advanceLesson]);
 
   const restart = useCallback(() => {
     setLessonIdx(0);
@@ -78,12 +85,15 @@ export function useLessonState() {
   return {
     lesson, lessonIdx, totalLessons: lessons.length,
     phase,
-    heardSet, markHeard, canGoToQuiz: heardSet.size >= 2,
+    heardSet, markHeard, canGoToQuiz: heardSet.size >= 3,
     goToQuiz,
+    goToSpeech,
     question, qIdx, totalQuestions: questions.length,
     selected, setSelected,
     qFeedback,
     submitAnswer,
+    onSpeechComplete,
+    advanceLesson,
     score, totalRight, totalWrong,
     restart,
   };

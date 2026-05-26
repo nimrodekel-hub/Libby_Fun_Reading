@@ -1,6 +1,14 @@
 import { useAudio } from '../hooks/useAudio';
 import { NIKUD_META } from '../data/curriculum';
 
+const GROUP_COLORS = {
+  A: { border: 'border-amber-400',  bg: 'bg-amber-50',  circle: 'bg-amber-400  border-amber-400'  },
+  E: { border: 'border-pink-400',   bg: 'bg-pink-50',   circle: 'bg-pink-400   border-pink-400'   },
+  I: { border: 'border-blue-400',   bg: 'bg-blue-50',   circle: 'bg-blue-400   border-blue-400'   },
+  O: { border: 'border-green-400',  bg: 'bg-green-50',  circle: 'bg-green-400  border-green-400'  },
+  U: { border: 'border-violet-400', bg: 'bg-violet-50', circle: 'bg-violet-400 border-violet-400' },
+};
+
 export default function NikudQuiz({
   question, selected, onSelect, onSubmit,
   feedback, qIdx, totalQ,
@@ -17,43 +25,37 @@ export default function NikudQuiz({
           שְׁאֵלָה {qIdx + 1} מִתּוֹךְ {totalQ}
         </p>
         <p className="text-xl font-black text-purple-700 font-rubik">
-          אֵיזֶה נִיקוּד זֶה?
+          אֵיזֶה צְלִיל מַתְאִים?
         </p>
       </div>
 
-      {/* Target card */}
-      <div className="bg-white border-4 border-purple-300 rounded-3xl shadow-xl px-10 py-5 text-center">
+      {/* Target card — letter+nikud only, no speaker */}
+      <div className="bg-white border-4 border-purple-300 rounded-3xl shadow-xl px-10 py-6 text-center">
         <div
           className="font-rubik font-black text-purple-900"
           style={{ fontSize: '8rem', lineHeight: '11rem', direction: 'rtl' }}
         >
           {target.display}
         </div>
-        <button
-          onClick={() => playText(target.display)}
-          className="mt-1 flex items-center gap-2 mx-auto px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-full text-blue-600 font-bold text-sm transition-colors"
-        >
-          🔊 שִׁמְעִי אוֹתִי
-        </button>
+        <p className="text-purple-400 text-sm font-assistant mt-1">לְחֲצִי עַל הַצְּלִיל הַמַּתְאִים 👇</p>
       </div>
 
-      {/* Answer options */}
+      {/* Answer options — sound only */}
       <div className="flex flex-col gap-3 w-full">
-        {options.map((opt) => {
-          const isSelected  = selected === opt.nikudType;
+        {options.map((opt, idx) => {
+          const isSelected   = selected === opt.nikudType;
           const isCorrectOpt = opt.isCorrect;
-          const meta = NIKUD_META[opt.nikudType];
-          const isA  = meta.group === 'A';
+          const meta         = NIKUD_META[opt.nikudType];
+          const gc           = GROUP_COLORS[meta.group];
 
-          // Feedback colouring
           let borderColor = 'border-purple-200';
           let bg          = 'bg-white';
           if (feedback) {
-            if (isCorrectOpt)         { borderColor = 'border-green-400'; bg = 'bg-green-50'; }
-            else if (isSelected)      { borderColor = 'border-red-400';   bg = 'bg-red-50';   }
+            if (isCorrectOpt)    { borderColor = 'border-green-400'; bg = 'bg-green-50'; }
+            else if (isSelected) { borderColor = 'border-red-400';   bg = 'bg-red-50';   }
           } else if (isSelected) {
-            borderColor = isA ? 'border-amber-400' : 'border-pink-400';
-            bg = isA ? 'bg-amber-50' : 'bg-pink-50';
+            borderColor = gc.border;
+            bg          = gc.bg;
           }
 
           return (
@@ -62,56 +64,35 @@ export default function NikudQuiz({
               onClick={() => { if (!feedback) onSelect(opt.nikudType); }}
               className={`
                 flex items-center gap-3 px-4 py-3 rounded-2xl border-4
-                transition-all duration-150 shadow-sm text-right
+                transition-all duration-150 shadow-sm
                 ${borderColor} ${bg}
                 ${!feedback ? 'hover:scale-[1.02] active:scale-[0.98] cursor-pointer' : 'cursor-default'}
               `}
               dir="rtl"
             >
-              {/* Checkbox circle */}
+              {/* Number badge */}
               <div className={`
-                w-7 h-7 rounded-full border-3 border-2 flex items-center justify-center shrink-0 transition-all
+                w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 font-black text-sm transition-all
                 ${feedback && isCorrectOpt        ? 'bg-green-400 border-green-400 text-white'
                   : feedback && isSelected         ? 'bg-red-400   border-red-400   text-white'
-                  : isSelected                     ? (isA ? 'bg-amber-400 border-amber-400' : 'bg-pink-400 border-pink-400') + ' text-white'
-                  : 'border-purple-300 bg-white'}
+                  : isSelected                     ? `${gc.circle} text-white`
+                  : 'border-purple-300 bg-white text-purple-500'}
               `}>
-                {(isSelected || (feedback && isCorrectOpt)) && (
-                  <span className="text-sm font-black">
-                    {feedback && isCorrectOpt ? '✓' : feedback && isSelected ? '✗' : '✓'}
-                  </span>
-                )}
+                {feedback && isCorrectOpt ? '✓' : feedback && isSelected ? '✗' : idx + 1}
               </div>
 
               {/* Speaker button */}
               <button
                 onClick={(e) => { e.stopPropagation(); playText(opt.display); }}
-                className="shrink-0 w-10 h-10 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center text-blue-500 text-lg transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-blue-100 hover:bg-blue-200 text-blue-600 font-bold text-base transition-colors"
                 aria-label="השמע"
               >
-                🔊
+                🔊 <span className="font-assistant text-sm">צְלִיל {idx + 1}</span>
               </button>
 
-              {/* Letter+nikud display */}
-              <div
-                className={`font-rubik font-black text-3xl flex-1 leading-none ${isA ? 'text-amber-800' : 'text-pink-800'}`}
-                style={{ lineHeight: '3.5rem', direction: 'rtl' }}
-              >
-                {opt.display}
-              </div>
-
-              {/* Nikud name */}
-              <div className={`text-sm font-bold font-rubik shrink-0 ${isA ? 'text-amber-600' : 'text-pink-600'}`}>
-                {meta.name}
-              </div>
-
-              {/* Correct/Wrong indicator */}
-              {feedback && isCorrectOpt && (
-                <span className="text-xl shrink-0 animate-bounce-slow">✅</span>
-              )}
-              {feedback && isSelected && !isCorrectOpt && (
-                <span className="text-xl shrink-0">❌</span>
-              )}
+              {/* Feedback indicators */}
+              {feedback && isCorrectOpt && <span className="text-xl shrink-0 animate-bounce-slow">✅</span>}
+              {feedback && isSelected && !isCorrectOpt && <span className="text-xl shrink-0">❌</span>}
             </button>
           );
         })}
@@ -139,7 +120,7 @@ export default function NikudQuiz({
               : 'bg-purple-100 text-purple-300 cursor-not-allowed'}
           `}
         >
-          {selected ? '✅ אִשְּׁרִי תְּשׁוּבָה!' : 'בַּחֲרִי תְּשׁוּבָה...'}
+          {selected ? '✅ אִשְּׁרִי תְּשׁוּבָה!' : 'בַּחֲרִי צְלִיל...'}
         </button>
       )}
     </div>

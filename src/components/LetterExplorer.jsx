@@ -1,7 +1,11 @@
 import NikudTile from './NikudTile';
 import { NIKUD_ORDER } from '../data/curriculum';
 
+const HEAR_THRESHOLD = 3;
+
 export default function LetterExplorer({ lesson, heardSet, onHear, onGoToQuiz, canGoToQuiz }) {
+  const isOdd = NIKUD_ORDER.length % 2 !== 0;
+
   return (
     <div className="flex flex-col items-center gap-6 w-full max-w-lg mx-auto px-4 py-6">
 
@@ -18,21 +22,27 @@ export default function LetterExplorer({ lesson, heardSet, onHear, onGoToQuiz, c
         </p>
       </div>
 
-      {/* 2×2 nikud grid */}
+      {/* Nikud grid — 2 columns, last tile centered when count is odd */}
       <div className="grid grid-cols-2 gap-4 w-full">
-        {NIKUD_ORDER.map(type => (
-          <NikudTile
-            key={type}
-            nikudType={type}
-            data={lesson.nikud[type]}
-            onHear={onHear}
-            heard={heardSet.has(type)}
-          />
-        ))}
+        {NIKUD_ORDER.map((type, i) => {
+          const isLast = isOdd && i === NIKUD_ORDER.length - 1;
+          return (
+            <div key={type} className={isLast ? 'col-span-2 flex justify-center' : ''}>
+              <div className={isLast ? 'w-1/2' : 'w-full'}>
+                <NikudTile
+                  nikudType={type}
+                  data={lesson.nikud[type]}
+                  onHear={onHear}
+                  heard={heardSet.has(type)}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Progress hint */}
-      <div className="flex gap-2 items-center">
+      {/* Progress dots */}
+      <div className="flex gap-2 items-center flex-wrap justify-center">
         {NIKUD_ORDER.map(type => (
           <span
             key={type}
@@ -42,11 +52,11 @@ export default function LetterExplorer({ lesson, heardSet, onHear, onGoToQuiz, c
           />
         ))}
         <span className="text-xs text-purple-400 font-assistant mr-1">
-          {heardSet.size}/4 שָׁמַעְתְּ
+          {heardSet.size}/{NIKUD_ORDER.length} שָׁמַעְתְּ
         </span>
       </div>
 
-      {/* Go to quiz button — unlocks after 2 heard */}
+      {/* Go to quiz button */}
       <button
         onClick={onGoToQuiz}
         disabled={!canGoToQuiz}
@@ -57,7 +67,9 @@ export default function LetterExplorer({ lesson, heardSet, onHear, onGoToQuiz, c
             : 'bg-purple-100 text-purple-300 cursor-not-allowed'}
         `}
       >
-        {canGoToQuiz ? '✏️ לַשְּׁאֵלוֹן!' : `עוֹד ${2 - heardSet.size} לִשְׁמוֹעַ...`}
+        {canGoToQuiz
+          ? '✏️ לַשְּׁאֵלוֹן!'
+          : `עוֹד ${HEAR_THRESHOLD - heardSet.size} לִשְׁמוֹעַ...`}
       </button>
     </div>
   );
