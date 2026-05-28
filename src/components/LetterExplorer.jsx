@@ -44,6 +44,7 @@ export default function LetterExplorer({ lesson, heardSet, onHear, onGoToQuiz, c
                   data={lesson.nikud[type]}
                   onHear={onHear}
                   heard={heardSet.has(type)}
+                  lessonId={lesson.id}
                 />
               </div>
             </div>

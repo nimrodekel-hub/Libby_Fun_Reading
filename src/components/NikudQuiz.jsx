@@ -15,7 +15,7 @@ export default function NikudQuiz({
   question, selected, onSelect, onSubmit,
   feedback, qIdx, totalQ,
 }) {
-  const { playText } = useAudio();
+  const { playLessonTile } = useAudio();
   const { target, options, targetType } = question;
 
   // Score pop state
@@ -114,7 +114,7 @@ export default function NikudQuiz({
 
               {/* Speaker button — play full example word for clear vowel sound */}
               <button
-                onClick={(e) => { e.stopPropagation(); playText(opt.example?.replace(/[^֐-׿\s]/g, '').trim() || opt.display); }}
+                onClick={(e) => { e.stopPropagation(); const wordOnly = opt.example?.replace(/[^֐-׿\s]/g, '').trim() || opt.display; playLessonTile(opt.lessonId, opt.nikudType, wordOnly); }}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl
                            bg-gradient-to-r from-blue-100 to-indigo-100
                            hover:from-blue-200 hover:to-indigo-200

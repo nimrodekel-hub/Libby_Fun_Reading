@@ -79,5 +79,56 @@ export function useAudio() {
     }
   }, [stopAll]);
 
-  return { playCardAudio, playText, stopAll };
+  // 3-tier playback for curriculum tiles: static file → IndexedDB → TTS
+  const playLessonTile = useCallback(async (lessonId, nikudType, fallbackText) => {
+    if (!lessonId || !nikudType) return;
+    stopAll();
+    isPlayingRef.current = true;
+    let didFallback = false;
+
+    // Tier 1: static deployed file
+    try {
+      const path = `/audio/${lessonId}-${nikudType}.webm`;
+      const audio = new Audio(path);
+      await new Promise((resolve, reject) => {
+        audio.oncanplaythrough = resolve;
+        audio.onerror = reject;
+        audio.load();
+      });
+      audioRef.current = audio;
+      audio.onended = () => { isPlayingRef.current = false; };
+      audio.onerror = () => { isPlayingRef.current = false; };
+      await audio.play();
+      return;
+    } catch { /* fall through to tier 2 */ }
+
+    // Tier 2: IndexedDB parent recording
+    if (!didFallback) {
+      try {
+        const stored = await getRecording(`${lessonId}-${nikudType}`);
+        if (stored) {
+          didFallback = true;
+          const audio = new Audio(stored);
+          audioRef.current = audio;
+          audio.onended = () => { isPlayingRef.current = false; };
+          audio.onerror = () => { isPlayingRef.current = false; };
+          await audio.play();
+          return;
+        }
+      } catch { /* fall through to tier 3 */ }
+    }
+
+    // Tier 3: TTS
+    if (!didFallback) {
+      didFallback = true;
+      if (fallbackText && 'speechSynthesis' in window) {
+        const u = buildUtterance(fallbackText, () => { isPlayingRef.current = false; });
+        window.speechSynthesis.speak(u);
+      } else {
+        isPlayingRef.current = false;
+      }
+    }
+  }, [stopAll]);
+
+  return { playCardAudio, playText, playLessonTile, stopAll };
 }

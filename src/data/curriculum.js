@@ -142,6 +142,7 @@ function makeOptions(lesson, targetType) {
       display:   lesson.nikud[type].display,
       example:   lesson.nikud[type].example,
       isCorrect: type === targetType,
+      lessonId:  lesson.id,
     }));
 }
 
@@ -155,6 +156,7 @@ export function generateQuestions(lesson) {
   ];
   return targets.map((targetType, i) => ({
     id:         `${lesson.id}-q${i + 1}`,
+    lessonId:   lesson.id,
     targetType,
     target:     lesson.nikud[targetType],
     options:    makeOptions(lesson, targetType),

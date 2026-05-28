@@ -87,7 +87,7 @@ function checkMatch(transcript, targetGroup, exampleWord) {
 }
 
 export default function SpeechChallenge({ lesson, onComplete }) {
-  const { playText }  = useAudio();
+  const { playLessonTile }  = useAudio();
   const [tileIdx,  setTileIdx]  = useState(0);
   const [status,   setStatus]   = useState(STATUS.idle);
   const [attempts, setAttempts] = useState(0);
@@ -231,7 +231,7 @@ export default function SpeechChallenge({ lesson, onComplete }) {
           </div>
           {/* Play it first button */}
           <button
-            onClick={() => playText(currentData.example.replace(/[^א-׺֑-ׇ\s]/g, '').trim())}
+            onClick={() => { const wordOnly = currentData.example.replace(/[^א-׺֑-ׇ\s]/g, '').trim(); playLessonTile(lesson.id, currentType, wordOnly); }}
             className="mt-2 flex items-center gap-2 mx-auto px-4 py-1.5 bg-white/60 hover:bg-white/90 rounded-full text-sm font-bold font-assistant transition-colors"
           >
             🔊 שִׁמְעִי קוֹדֶם
