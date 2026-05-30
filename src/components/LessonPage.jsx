@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import LetterExplorer  from './LetterExplorer';
 
-const APP_VERSION = 11;
+const APP_VERSION = 12;
 import NikudQuiz       from './NikudQuiz';
 import SpeechChallenge from './SpeechChallenge';
 import MagicBackground from './MagicBackground';
@@ -13,6 +13,7 @@ export default function LessonPage({
   qFeedback, submitAnswer,
   onSpeechComplete,
   score,
+  onScoreTap,
 }) {
   const quizRef   = useRef(null);
   const speechRef = useRef(null);
@@ -67,12 +68,15 @@ export default function LessonPage({
             <span className="text-xs text-purple-400 font-assistant mt-0.5">{lesson.emoji} {lesson.name}</span>
           </div>
 
-          {/* Score */}
-          <div className="flex items-center gap-1.5 rounded-2xl px-3 py-2 font-black text-amber-700 text-xl shrink-0"
-               style={{ background: 'linear-gradient(135deg, #fef3c7, #fde68a)', boxShadow: '0 4px 16px rgba(251,191,36,0.3)', border: '2px solid #FCD34D' }}>
+          {/* Score — tap 5× rapidly to open parent recording studio */}
+          <button
+            onClick={onScoreTap}
+            className="flex items-center gap-1.5 rounded-2xl px-3 py-2 font-black text-amber-700 text-xl shrink-0 active:scale-95 transition-transform"
+            style={{ background: 'linear-gradient(135deg, #fef3c7, #fde68a)', boxShadow: '0 4px 16px rgba(251,191,36,0.3)', border: '2px solid #FCD34D' }}
+          >
             <span className="text-2xl">👑</span>
             <span>{score}</span>
-          </div>
+          </button>
         </div>
 
         {/* Phase tabs */}

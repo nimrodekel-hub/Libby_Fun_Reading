@@ -1,36 +1,86 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import LessonPage      from './LessonPage';
 import MagicBackground from './MagicBackground';
 import ConfettiBurst   from './ConfettiBurst';
+import RecordingStudio from './RecordingStudio';
 import { useLessonState } from '../hooks/useLessonState';
 
 export default function GameBoard() {
   const state = useLessonState();
+  const [showRecording, setShowRecording] = useState(false);
+  const [tapCount,      setTapCount]      = useState(0);
+  const [tapTimer,      setTapTimer]      = useState(null);
+
+  // Hidden parent entry: tap the 👑 score badge 5 times within 2 seconds
+  const handleScoreTap = useCallback(() => {
+    setTapCount(n => {
+      const next = n + 1;
+      if (next >= 5) {
+        setShowRecording(true);
+        clearTimeout(tapTimer);
+        setTapTimer(null);
+        return 0;
+      }
+      clearTimeout(tapTimer);
+      const t = setTimeout(() => setTapCount(0), 2000);
+      setTapTimer(t);
+      return next;
+    });
+  }, [tapTimer]);
 
   if (state.phase === 'done') {
     return <DoneScreen score={state.score} right={state.totalRight} wrong={state.totalWrong} restart={state.restart} />;
   }
 
   return (
-    <LessonPage
-      lesson={state.lesson}
-      lessonIdx={state.lessonIdx}
-      totalLessons={state.totalLessons}
-      phase={state.phase}
-      heardSet={state.heardSet}
-      markHeard={state.markHeard}
-      canGoToQuiz={state.canGoToQuiz}
-      goToQuiz={state.goToQuiz}
-      question={state.question}
-      qIdx={state.qIdx}
-      totalQuestions={state.totalQuestions}
-      selected={state.selected}
-      setSelected={state.setSelected}
-      qFeedback={state.qFeedback}
-      submitAnswer={state.submitAnswer}
-      onSpeechComplete={state.onSpeechComplete}
-      score={state.score}
-    />
+    <>
+      <LessonPage
+        lesson={state.lesson}
+        lessonIdx={state.lessonIdx}
+        totalLessons={state.totalLessons}
+        phase={state.phase}
+        heardSet={state.heardSet}
+        markHeard={state.markHeard}
+        canGoToQuiz={state.canGoToQuiz}
+        goToQuiz={state.goToQuiz}
+        question={state.question}
+        qIdx={state.qIdx}
+        totalQuestions={state.totalQuestions}
+        selected={state.selected}
+        setSelected={state.setSelected}
+        qFeedback={state.qFeedback}
+        submitAnswer={state.submitAnswer}
+        onSpeechComplete={state.onSpeechComplete}
+        score={state.score}
+        onScoreTap={handleScoreTap}
+      />
+
+      {showRecording && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm"
+             dir="rtl">
+          <div className="bg-white rounded-t-3xl border-t-4 border-purple-300 shadow-2xl
+                          w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden font-rubik">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-purple-100 bg-gradient-to-r from-purple-50 to-pink-50 shrink-0">
+              <div>
+                <h2 className="text-lg font-black text-purple-800">🎙️ אוּלְפַּן הַהַקְלָטָה</h2>
+                <p className="text-xs text-purple-400 font-assistant">הַקְלִיטִי מִילִּים עֲבוּר לִיבִּי</p>
+              </div>
+              <button
+                onClick={() => setShowRecording(false)}
+                className="p-2 rounded-full hover:bg-purple-100 text-purple-500 transition-colors text-xl font-black"
+              >
+                ✕
+              </button>
+            </div>
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <RecordingStudio />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
