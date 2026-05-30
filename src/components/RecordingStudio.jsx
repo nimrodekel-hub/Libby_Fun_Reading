@@ -336,8 +336,8 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudNam
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-purple-600 font-assistant truncate">{nikudName}</p>
-        <p className="text-xs text-purple-400 font-assistant truncate">{exampleWord}</p>
+        <p className="font-black font-rubik text-purple-800 truncate" style={{ fontSize: '1.35rem', lineHeight: '1.8rem' }} dir="rtl">{exampleWord}</p>
+        <p className="text-xs text-purple-400 font-assistant truncate">{nikudName}</p>
       </div>
 
       {/* Status badge */}
