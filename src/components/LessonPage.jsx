@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import LetterExplorer  from './LetterExplorer';
 
-const APP_VERSION = 17;
+const APP_VERSION = 18;
 import NikudQuiz       from './NikudQuiz';
 import SpeechChallenge from './SpeechChallenge';
 import MagicBackground from './MagicBackground';

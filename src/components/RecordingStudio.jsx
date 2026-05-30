@@ -89,6 +89,9 @@ export default function RecordingStudio() {
       {/* ── How it works explanation ─────────────────────────── */}
       <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4 space-y-3 font-assistant text-sm">
         <p className="font-black text-indigo-700 text-base">📖 איך עובד האולפן?</p>
+        <p className="text-indigo-600 text-xs bg-indigo-100 rounded-xl px-3 py-2 font-bold">
+          🔑 כניסה לאולפן: לחץ 5 פעמים ברצף על 👑 (תג הניקוד) במסך המשחק
+        </p>
 
         <ol className="space-y-2 text-indigo-800 list-none">
           <li className="flex gap-2">
@@ -213,6 +216,7 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudNam
   const [status, setStatus] = useState(hasSaved ? 'saved' : 'idle');
   const recorderRef         = useRef(null);
   const chunksRef           = useRef([]);
+  const playbackRef         = useRef(null);
   const key                 = `${lessonId}-${nikudType}`;
 
   useEffect(() => {
@@ -233,6 +237,7 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudNam
         const reader = new FileReader();
         reader.onloadend = async () => {
           await saveRecording(key, reader.result);
+          // Only mark saved AFTER IndexedDB write — otherwise Play fires before data is stored
           setStatus('saved');
           onSaved(key);
         };
@@ -249,12 +254,18 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudNam
   function stopRecording() {
     recorderRef.current?.stop();
     recorderRef.current = null;
-    setStatus('saved');
+    setStatus('saving'); // wait for onstop → IndexedDB before showing Play
   }
 
   async function playBack() {
     const data = await getRecording(key);
-    if (data) new Audio(data).play();
+    if (!data) return;
+    // Keep ref to prevent GC before playback completes
+    if (playbackRef.current) playbackRef.current.pause();
+    const audio = new Audio(data);
+    playbackRef.current = audio;
+    audio.onended = () => { playbackRef.current = null; };
+    audio.play().catch(() => { playbackRef.current = null; });
   }
 
   async function handleDelete() {
@@ -324,6 +335,9 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudNam
           >
             <Square size={12} fill="white" /> עֲצֹר
           </button>
+        )}
+        {status === 'saving' && (
+          <span className="text-xs text-purple-400 font-assistant animate-pulse">שׁוֹמֵר…</span>
         )}
         {status === 'saved' && (
           <>
