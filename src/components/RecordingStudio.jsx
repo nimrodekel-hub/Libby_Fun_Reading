@@ -213,18 +213,48 @@ export default function RecordingStudio() {
 
 // ── Curriculum tile recorder row ──────────────────────────────────────
 function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudName, hasSaved, isDeployed, onSaved, onDeleted }) {
-  const [status, setStatus] = useState(hasSaved ? 'saved' : 'idle');
-  const recorderRef         = useRef(null);
-  const chunksRef           = useRef([]);
-  const playbackRef         = useRef(null);
-  const key                 = `${lessonId}-${nikudType}`;
+  const [status, setStatus]     = useState(hasSaved ? 'saved' : 'idle');
+  const [playError, setPlayError] = useState('');
+  const recorderRef             = useRef(null);
+  const chunksRef               = useRef([]);
+  const playbackRef             = useRef(null);
+  const blobUrlRef              = useRef(null);
+  const key                     = `${lessonId}-${nikudType}`;
 
   useEffect(() => {
     setStatus(hasSaved ? 'saved' : 'idle');
   }, [hasSaved]);
 
+  // Pre-load Blob URL as soon as status becomes 'saved' so playBack() is synchronous
+  useEffect(() => {
+    if (status !== 'saved') {
+      if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
+      return;
+    }
+    let cancelled = false;
+    let createdUrl = null;
+    (async () => {
+      try {
+        const dataUrl = await getRecording(key);
+        if (cancelled || !dataUrl) return;
+        const res  = await fetch(dataUrl);
+        const blob = await res.blob();
+        if (cancelled) return;
+        createdUrl = URL.createObjectURL(blob);
+        blobUrlRef.current = createdUrl;
+      } catch { /* keep blobUrlRef null — playBack will show error */ }
+    })();
+    return () => {
+      cancelled = true;
+      if (playbackRef.current) { playbackRef.current.pause(); playbackRef.current = null; }
+      if (createdUrl) { URL.revokeObjectURL(createdUrl); }
+      blobUrlRef.current = null;
+    };
+  }, [status, key]);
+
   async function startRecording() {
     setStatus('requesting');
+    setPlayError('');
     try {
       const stream   = await navigator.mediaDevices.getUserMedia({ audio: true });
       chunksRef.current = [];
@@ -260,24 +290,18 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudNam
     setStatus('saving'); // wait for onstop → IndexedDB before showing Play
   }
 
-  async function playBack() {
-    const dataUrl = await getRecording(key);
-    if (!dataUrl) return;
-    // Stop any current playback
+  // Fully synchronous — no awaits before audio.play()
+  // Blob URL is pre-loaded by useEffect when status becomes 'saved'
+  function playBack() {
+    setPlayError('');
+    const url = blobUrlRef.current;
+    if (!url) { setPlayError('טוען…'); return; }
     if (playbackRef.current) { playbackRef.current.pause(); playbackRef.current = null; }
-    // Convert Data URL → Blob URL: more reliable for audio in Chrome
-    try {
-      const res  = await fetch(dataUrl);
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      playbackRef.current = audio;
-      audio.onended = () => { URL.revokeObjectURL(url); playbackRef.current = null; };
-      audio.onerror = () => { URL.revokeObjectURL(url); playbackRef.current = null; setStatus('idle'); };
-      await audio.play();
-    } catch {
-      playbackRef.current = null;
-    }
+    const audio = new Audio(url);
+    playbackRef.current = audio;
+    audio.onended = () => { playbackRef.current = null; };
+    audio.onerror = () => { playbackRef.current = null; setPlayError(`שגיאה ${audio.error?.code ?? '?'}`); };
+    audio.play().catch(err => { playbackRef.current = null; setPlayError(err.name); });
   }
 
   async function handleDelete() {
@@ -356,6 +380,7 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudNam
             <button onClick={playBack}       className="p-1.5 rounded-full bg-blue-100   text-blue-600   hover:bg-blue-200   transition-colors" title="נגן"><Play     size={14} /></button>
             <button onClick={handleDownload} className="p-1.5 rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors" title="הורד"><Download size={14} /></button>
             <button onClick={handleDelete}   className="p-1.5 rounded-full bg-red-100    text-red-500    hover:bg-red-200    transition-colors" title="מחק"><Trash2   size={14} /></button>
+            {playError && <span className="text-xs text-red-500 font-assistant">{playError}</span>}
           </>
         )}
       </div>
