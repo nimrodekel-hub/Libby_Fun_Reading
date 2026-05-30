@@ -1,15 +1,37 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import LessonPage      from './LessonPage';
 import MagicBackground from './MagicBackground';
 import ConfettiBurst   from './ConfettiBurst';
 import RecordingStudio from './RecordingStudio';
 import { useLessonState } from '../hooks/useLessonState';
+import { loadAllWordOverrides } from '../utils/wordOverrides';
+
+function applyOverrides(lesson, overrides) {
+  if (!lesson || !overrides) return lesson;
+  const nikud = { ...lesson.nikud };
+  let changed = false;
+  for (const nikudType of Object.keys(nikud)) {
+    const ov = overrides[`${lesson.id}-${nikudType}`];
+    if (ov) { nikud[nikudType] = { ...nikud[nikudType], example: ov }; changed = true; }
+  }
+  return changed ? { ...lesson, nikud } : lesson;
+}
 
 export default function GameBoard() {
   const state = useLessonState();
   const [showRecording, setShowRecording] = useState(false);
   const [tapCount,      setTapCount]      = useState(0);
   const [tapTimer,      setTapTimer]      = useState(null);
+  const [wordOverrides, setWordOverrides] = useState(() => loadAllWordOverrides());
+
+  const handleWordChanged = useCallback((key, newExample) => {
+    setWordOverrides(prev => ({ ...prev, [key]: newExample }));
+  }, []);
+
+  const resolvedLesson = useMemo(
+    () => applyOverrides(state.lesson, wordOverrides),
+    [state.lesson, wordOverrides]
+  );
 
   // Hidden parent entry: tap the 👑 score badge 5 times within 2 seconds
   const handleScoreTap = useCallback(() => {
@@ -35,7 +57,7 @@ export default function GameBoard() {
   return (
     <>
       <LessonPage
-        lesson={state.lesson}
+        lesson={resolvedLesson}
         lessonIdx={state.lessonIdx}
         totalLessons={state.totalLessons}
         phase={state.phase}
@@ -75,7 +97,7 @@ export default function GameBoard() {
             </div>
             {/* Body */}
             <div className="flex-1 overflow-y-auto p-4">
-              <RecordingStudio />
+              <RecordingStudio onWordChanged={handleWordChanged} />
             </div>
           </div>
         </div>

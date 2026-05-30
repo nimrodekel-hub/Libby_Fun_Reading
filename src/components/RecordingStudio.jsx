@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mic, Square, Play, Trash2, Check, Download, Upload } from 'lucide-react';
+import { Mic, Square, Play, Trash2, Check, Download, Upload, Pencil } from 'lucide-react';
 import { saveRecording, getRecording, deleteRecording } from '../utils/audioStorage';
+import { loadAllWordOverrides, saveWordOverride } from '../utils/wordOverrides';
 import { LETTER_CARDS } from '../data/letters';
 import { WORD_CARDS }   from '../data/words';
 import { LETTER_LESSONS, NIKUD_META, NIKUD_ORDER } from '../data/curriculum';
@@ -10,11 +11,12 @@ const ALL_CARDS = [
   { group: 'שַׁלַב 2 — מִילִּים',   cards: WORD_CARDS   },
 ];
 
-export default function RecordingStudio() {
+export default function RecordingStudio({ onWordChanged: notifyParent }) {
   const [savedIds,         setSavedIds]         = useState(new Set());
   const [savedCurriculumIds, setSavedCurriculumIds] = useState(new Set());
   const [deployedIds,      setDeployedIds]      = useState(new Set());
   const [checkingDeploy,   setCheckingDeploy]   = useState(false);
+  const [wordOverrides,    setWordOverrides]    = useState(() => loadAllWordOverrides());
 
   // Load which keys have recordings in IndexedDB
   useEffect(() => {
@@ -65,6 +67,11 @@ export default function RecordingStudio() {
   }
   function onCurriculumDeleted(key) {
     setSavedCurriculumIds(prev => { const n = new Set(prev); n.delete(key); return n; });
+  }
+  function handleWordChanged(key, newExample) {
+    saveWordOverride(key, newExample);
+    setWordOverrides(prev => ({ ...prev, [key]: newExample }));
+    notifyParent?.(key, newExample);
   }
 
   // Keys recorded locally but NOT yet deployed as static files
@@ -165,9 +172,10 @@ export default function RecordingStudio() {
             </h4>
             <div className="space-y-2">
               {NIKUD_ORDER.map(nikudType => {
-                const key       = `${lesson.id}-${nikudType}`;
-                const tileData  = lesson.nikud[nikudType];
-                const exWord    = tileData.example.replace(/[^֐-׿\s]/g, '').trim();
+                const key         = `${lesson.id}-${nikudType}`;
+                const tileData    = lesson.nikud[nikudType];
+                const tileExample = wordOverrides[key] ?? tileData.example;
+                const exWord      = tileExample.replace(/[^֐-׿\s]/g, '').trim();
                 return (
                   <CurriculumCardRow
                     key={key}
@@ -180,6 +188,7 @@ export default function RecordingStudio() {
                     isDeployed={deployedIds.has(key)}
                     onSaved={onCurriculumSaved}
                     onDeleted={onCurriculumDeleted}
+                    onWordChanged={handleWordChanged}
                   />
                 );
               })}
@@ -212,14 +221,23 @@ export default function RecordingStudio() {
 }
 
 // ── Curriculum tile recorder row ──────────────────────────────────────
-function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudName, hasSaved, isDeployed, onSaved, onDeleted }) {
-  const [status, setStatus]     = useState(hasSaved ? 'saved' : 'idle');
+function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudName, hasSaved, isDeployed, onSaved, onDeleted, onWordChanged }) {
+  const [status, setStatus]       = useState(hasSaved ? 'saved' : 'idle');
   const [playError, setPlayError] = useState('');
-  const recorderRef             = useRef(null);
-  const chunksRef               = useRef([]);
-  const playbackRef             = useRef(null);
-  const blobUrlRef              = useRef(null);
-  const key                     = `${lessonId}-${nikudType}`;
+  const [editing, setEditing]     = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const recorderRef               = useRef(null);
+  const chunksRef                 = useRef([]);
+  const playbackRef               = useRef(null);
+  const blobUrlRef                = useRef(null);
+  const key                       = `${lessonId}-${nikudType}`;
+
+  function startEdit() { setEditValue(exampleWord); setEditing(true); }
+  function saveEdit() {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== exampleWord) onWordChanged(key, trimmed);
+    setEditing(false);
+  }
 
   useEffect(() => {
     setStatus(hasSaved ? 'saved' : 'idle');
@@ -336,7 +354,28 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudNam
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="font-black font-rubik text-purple-800 truncate" style={{ fontSize: '1.35rem', lineHeight: '1.8rem' }} dir="rtl">{exampleWord}</p>
+        {editing ? (
+          <input
+            autoFocus
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter')  saveEdit();
+              if (e.key === 'Escape') setEditing(false);
+            }}
+            onBlur={saveEdit}
+            dir="rtl"
+            className="w-full font-black font-rubik text-purple-800 bg-purple-50 border-2 border-purple-400 rounded-lg px-2 outline-none"
+            style={{ fontSize: '1.2rem', lineHeight: '2rem' }}
+          />
+        ) : (
+          <div className="flex items-center gap-1 cursor-pointer" onClick={startEdit}>
+            <p className="font-black font-rubik text-purple-800 truncate" style={{ fontSize: '1.35rem', lineHeight: '1.8rem' }} dir="rtl">
+              {exampleWord}
+            </p>
+            <Pencil size={11} className="text-purple-300 shrink-0" />
+          </div>
+        )}
         <p className="text-xs text-purple-400 font-assistant truncate">{nikudName}</p>
       </div>
 
