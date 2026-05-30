@@ -176,6 +176,7 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
                 const tileData    = lesson.nikud[nikudType];
                 const tileExample = wordOverrides[key] ?? tileData.example;
                 const exWord      = tileExample.replace(/[^֐-׿\s]/g, '').trim();
+                const options     = [tileData.example, ...(tileData.alts ?? [])];
                 return (
                   <CurriculumCardRow
                     key={key}
@@ -183,6 +184,7 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
                     nikudType={nikudType}
                     display={tileData.display}
                     exampleWord={exWord}
+                    options={options}
                     nikudName={NIKUD_META[nikudType].name}
                     hasSaved={savedCurriculumIds.has(key)}
                     isDeployed={deployedIds.has(key)}
@@ -221,23 +223,15 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
 }
 
 // ── Curriculum tile recorder row ──────────────────────────────────────
-function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudName, hasSaved, isDeployed, onSaved, onDeleted, onWordChanged }) {
+function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, options = [], nikudName, hasSaved, isDeployed, onSaved, onDeleted, onWordChanged }) {
   const [status, setStatus]       = useState(hasSaved ? 'saved' : 'idle');
   const [playError, setPlayError] = useState('');
-  const [editing, setEditing]     = useState(false);
-  const [editValue, setEditValue] = useState('');
+  const [picking, setPicking]     = useState(false);
   const recorderRef               = useRef(null);
   const chunksRef                 = useRef([]);
   const playbackRef               = useRef(null);
   const blobUrlRef                = useRef(null);
   const key                       = `${lessonId}-${nikudType}`;
-
-  function startEdit() { setEditValue(exampleWord); setEditing(true); }
-  function saveEdit() {
-    const trimmed = editValue.trim();
-    if (trimmed && trimmed !== exampleWord) onWordChanged(key, trimmed);
-    setEditing(false);
-  }
 
   useEffect(() => {
     setStatus(hasSaved ? 'saved' : 'idle');
@@ -354,28 +348,39 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudNam
       </div>
 
       <div className="flex-1 min-w-0">
-        {editing ? (
-          <input
-            autoFocus
-            value={editValue}
-            onChange={e => setEditValue(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter')  saveEdit();
-              if (e.key === 'Escape') setEditing(false);
-            }}
-            onBlur={saveEdit}
-            dir="rtl"
-            className="w-full font-black font-rubik text-purple-800 bg-purple-50 border-2 border-purple-400 rounded-lg px-2 outline-none"
-            style={{ fontSize: '1.2rem', lineHeight: '2rem' }}
-          />
-        ) : (
-          <div className="flex items-center gap-1 cursor-pointer" onClick={startEdit}>
-            <p className="font-black font-rubik text-purple-800 truncate" style={{ fontSize: '1.35rem', lineHeight: '1.8rem' }} dir="rtl">
-              {exampleWord}
-            </p>
-            <Pencil size={11} className="text-purple-300 shrink-0" />
+        <div
+          className="flex items-center gap-1 cursor-pointer active:opacity-70"
+          onClick={() => options.length > 1 && setPicking(p => !p)}
+        >
+          <p className="font-black font-rubik text-purple-800 truncate" style={{ fontSize: '1.35rem', lineHeight: '1.8rem' }} dir="rtl">
+            {exampleWord}
+          </p>
+          {options.length > 1 && <Pencil size={11} className="text-purple-300 shrink-0" />}
+        </div>
+
+        {picking && (
+          <div className="flex flex-wrap gap-1 mt-1 pb-1">
+            {options.map((raw, i) => {
+              const word     = raw.replace(/[^֐-׿\s]/g, '').trim();
+              const selected = word === exampleWord;
+              return (
+                <button
+                  key={i}
+                  dir="rtl"
+                  onClick={() => { if (!selected) onWordChanged(key, raw); setPicking(false); }}
+                  className={`px-2 py-1 rounded-xl font-black font-rubik text-sm transition-colors
+                    ${selected
+                      ? 'bg-purple-200 text-purple-900 border-2 border-purple-400'
+                      : 'bg-white text-purple-700 border border-purple-200 active:bg-purple-50'}`}
+                >
+                  {word} {selected && '✓'}
+                </button>
+              );
+            })}
+            <button onClick={() => setPicking(false)} className="px-2 py-1 rounded-xl text-xs text-purple-300 border border-purple-100">✕</button>
           </div>
         )}
+
         <p className="text-xs text-purple-400 font-assistant truncate">{nikudName}</p>
       </div>
 
