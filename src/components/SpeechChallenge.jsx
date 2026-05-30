@@ -150,10 +150,15 @@ export default function SpeechChallenge({ lesson, onComplete }) {
       rec.maxAlternatives = 1;
 
       rec.onerror = (e) => {
-        if (e.error === 'no-speech') return; // onend will handle restart
-        stopMic();
-        setAttempts(n => n + 1);
-        setStatus(STATUS.fail);
+        // Only mic-level fatal errors should stop listening.
+        // 'no-speech', 'network', 'aborted', 'bad-grammar' etc. are transient —
+        // let onend handle the restart.
+        const fatal = ['not-allowed', 'audio-capture', 'service-not-allowed'];
+        if (fatal.includes(e.error)) {
+          stopMic();
+          setAttempts(n => n + 1);
+          setStatus(STATUS.fail);
+        }
       };
 
       rec.onend = () => {
@@ -161,7 +166,8 @@ export default function SpeechChallenge({ lesson, onComplete }) {
         // (stopMic nulls onend before abort, so this is a browser-side close)
         recognitionRef.current = null;
         if (Date.now() - sessionStart < LISTEN_WINDOW_MS) {
-          launch(); // relaunch transparently
+          // Small delay prevents Chrome's InvalidStateError on rapid restart
+          setTimeout(launch, 50);
         } else {
           setAttempts(n => n + 1);
           setStatus(STATUS.fail);
