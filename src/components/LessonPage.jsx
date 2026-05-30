@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import LetterExplorer  from './LetterExplorer';
+
+const APP_VERSION = 10;
 import NikudQuiz       from './NikudQuiz';
 import SpeechChallenge from './SpeechChallenge';
 import MagicBackground from './MagicBackground';
@@ -36,9 +38,12 @@ export default function LessonPage({
 
           {/* Lesson progress */}
           <div className="flex flex-col gap-1 min-w-0">
-            <span className="text-xs font-bold text-purple-500 font-assistant whitespace-nowrap">
-              שַׁלַב {lessonIdx + 1} / {totalLessons}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-purple-500 font-assistant whitespace-nowrap">
+                שַׁלַב {lessonIdx + 1} / {totalLessons}
+              </span>
+              <span className="text-xs font-bold text-purple-300 font-assistant">v{APP_VERSION}</span>
+            </div>
             <div className="w-24 h-3 bg-purple-100 rounded-full overflow-hidden border border-purple-200">
               <div
                 className="h-full rounded-full transition-all duration-700"
