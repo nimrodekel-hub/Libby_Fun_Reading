@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import LetterExplorer  from './LetterExplorer';
 
-const APP_VERSION = 18;
+const APP_VERSION = 19;
 import NikudQuiz       from './NikudQuiz';
 import SpeechChallenge from './SpeechChallenge';
 import MagicBackground from './MagicBackground';
@@ -97,6 +97,12 @@ export default function LessonPage({
             </div>
           ))}
         </div>
+
+        {/* Parent hint — small, tucked under tabs */}
+        <p className="max-w-lg mx-auto text-center text-purple-300 font-assistant mt-1"
+           style={{ fontSize: '10px' }}>
+          הורים: לחצו 5× על 👑 לאולפן ההקלטות 🎙️
+        </p>
       </div>
 
       {/* ── Page body ── */}

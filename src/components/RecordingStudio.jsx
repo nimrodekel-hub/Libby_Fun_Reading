@@ -226,14 +226,17 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudNam
   async function startRecording() {
     setStatus('requesting');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream   = await navigator.mediaDevices.getUserMedia({ audio: true });
       chunksRef.current = [];
-      const recorder    = new MediaRecorder(stream);
+      // Let the browser choose its native mimeType (Chrome uses video/webm;codecs=opus).
+      // Forcing 'audio/webm' causes a mismatch that silently breaks playback.
+      const recorder = new MediaRecorder(stream);
       recorderRef.current = recorder;
       recorder.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data); };
       recorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        const blob   = new Blob(chunksRef.current, { type: 'audio/webm' });
+        // Use the recorder's actual mimeType, not a hardcoded one
+        const blob   = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
         const reader = new FileReader();
         reader.onloadend = async () => {
           await saveRecording(key, reader.result);
@@ -258,14 +261,23 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, nikudNam
   }
 
   async function playBack() {
-    const data = await getRecording(key);
-    if (!data) return;
-    // Keep ref to prevent GC before playback completes
-    if (playbackRef.current) playbackRef.current.pause();
-    const audio = new Audio(data);
-    playbackRef.current = audio;
-    audio.onended = () => { playbackRef.current = null; };
-    audio.play().catch(() => { playbackRef.current = null; });
+    const dataUrl = await getRecording(key);
+    if (!dataUrl) return;
+    // Stop any current playback
+    if (playbackRef.current) { playbackRef.current.pause(); playbackRef.current = null; }
+    // Convert Data URL → Blob URL: more reliable for audio in Chrome
+    try {
+      const res  = await fetch(dataUrl);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      playbackRef.current = audio;
+      audio.onended = () => { URL.revokeObjectURL(url); playbackRef.current = null; };
+      audio.onerror = () => { URL.revokeObjectURL(url); playbackRef.current = null; setStatus('idle'); };
+      await audio.play();
+    } catch {
+      playbackRef.current = null;
+    }
   }
 
   async function handleDelete() {
