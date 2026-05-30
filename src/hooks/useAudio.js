@@ -84,49 +84,40 @@ export function useAudio() {
     if (!lessonId || !nikudType) return;
     stopAll();
     isPlayingRef.current = true;
-    let didFallback = false;
 
-    // Tier 1: static deployed file
+    // Tier 1: static deployed file — HEAD probe avoids hanging on 404
     try {
       const path = `/audio/${lessonId}-${nikudType}.webm`;
-      const audio = new Audio(path);
-      await new Promise((resolve, reject) => {
-        audio.oncanplaythrough = resolve;
-        audio.onerror = reject;
-        audio.load();
-      });
-      audioRef.current = audio;
-      audio.onended = () => { isPlayingRef.current = false; };
-      audio.onerror = () => { isPlayingRef.current = false; };
-      await audio.play();
-      return;
-    } catch { /* fall through to tier 2 */ }
+      const probe = await fetch(path, { method: 'HEAD' });
+      if (probe.ok) {
+        const audio = new Audio(path);
+        audioRef.current = audio;
+        audio.onended = () => { isPlayingRef.current = false; };
+        audio.onerror  = () => { isPlayingRef.current = false; };
+        await audio.play();
+        return;
+      }
+    } catch { /* no file — fall through */ }
 
     // Tier 2: IndexedDB parent recording
-    if (!didFallback) {
-      try {
-        const stored = await getRecording(`${lessonId}-${nikudType}`);
-        if (stored) {
-          didFallback = true;
-          const audio = new Audio(stored);
-          audioRef.current = audio;
-          audio.onended = () => { isPlayingRef.current = false; };
-          audio.onerror = () => { isPlayingRef.current = false; };
-          await audio.play();
-          return;
-        }
-      } catch { /* fall through to tier 3 */ }
-    }
+    try {
+      const stored = await getRecording(`${lessonId}-${nikudType}`);
+      if (stored) {
+        const audio = new Audio(stored);
+        audioRef.current = audio;
+        audio.onended = () => { isPlayingRef.current = false; };
+        audio.onerror  = () => { isPlayingRef.current = false; };
+        await audio.play();
+        return;
+      }
+    } catch { /* fall through */ }
 
     // Tier 3: TTS
-    if (!didFallback) {
-      didFallback = true;
-      if (fallbackText && 'speechSynthesis' in window) {
-        const u = buildUtterance(fallbackText, () => { isPlayingRef.current = false; });
-        window.speechSynthesis.speak(u);
-      } else {
-        isPlayingRef.current = false;
-      }
+    isPlayingRef.current = false;
+    if (fallbackText && 'speechSynthesis' in window) {
+      isPlayingRef.current = true;
+      const u = buildUtterance(fallbackText, () => { isPlayingRef.current = false; });
+      window.speechSynthesis.speak(u);
     }
   }, [stopAll]);
 
