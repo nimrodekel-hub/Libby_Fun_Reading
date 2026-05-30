@@ -79,34 +79,34 @@ export function useAudio() {
     }
   }, [stopAll]);
 
-  // 2-tier playback for curriculum tiles: IndexedDB recording → TTS
-  // (Static-file tier omitted: no files deployed yet, and the async fetch
-  //  breaks the user-gesture chain on iOS Safari before TTS can fire.)
-  const playLessonTile = useCallback(async (lessonId, nikudType, fallbackText) => {
+  // Playback for curriculum tiles: TTS fires synchronously (preserves iOS Safari
+  // user-gesture), then IndexedDB is checked in the background and swaps in a
+  // parent recording if one exists.
+  const playLessonTile = useCallback((lessonId, nikudType, fallbackText) => {
     if (!lessonId || !nikudType) return;
     stopAll();
     isPlayingRef.current = true;
 
-    // Tier 1: IndexedDB parent recording
-    try {
-      const stored = await getRecording(`${lessonId}-${nikudType}`);
-      if (stored) {
-        const audio = new Audio(stored);
-        audioRef.current = audio;
-        audio.onended = () => { isPlayingRef.current = false; };
-        audio.onerror  = () => { isPlayingRef.current = false; };
-        await audio.play();
-        return;
-      }
-    } catch { /* fall through */ }
-
-    // Tier 2: TTS
-    isPlayingRef.current = false;
+    // Start TTS immediately — must be synchronous to satisfy iOS Safari's
+    // user-gesture requirement for speechSynthesis.speak().
     if (fallbackText && 'speechSynthesis' in window) {
-      isPlayingRef.current = true;
       const u = buildUtterance(fallbackText, () => { isPlayingRef.current = false; });
       window.speechSynthesis.speak(u);
+    } else {
+      isPlayingRef.current = false;
     }
+
+    // In parallel: if a parent recording exists in IndexedDB, upgrade to it.
+    getRecording(`${lessonId}-${nikudType}`).then(stored => {
+      if (!stored) return;
+      window.speechSynthesis?.cancel();
+      isPlayingRef.current = true;
+      const audio = new Audio(stored);
+      audioRef.current = audio;
+      audio.onended = () => { isPlayingRef.current = false; };
+      audio.onerror  = () => { isPlayingRef.current = false; };
+      audio.play().catch(() => { isPlayingRef.current = false; });
+    }).catch(() => { /* keep TTS */ });
   }, [stopAll]);
 
   return { playCardAudio, playText, playLessonTile, stopAll };
