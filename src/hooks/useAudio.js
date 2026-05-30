@@ -79,16 +79,17 @@ export function useAudio() {
     }
   }, [stopAll]);
 
-  // Playback for curriculum tiles: TTS fires synchronously (preserves iOS Safari
-  // user-gesture), then IndexedDB is checked in the background and swaps in a
-  // parent recording if one exists.
+  // Playback for curriculum tiles.
+  // TTS fires synchronously first (iOS Safari user-gesture requirement).
+  // In parallel we look for a better source and swap in if found:
+  //   1. Static file deployed to /audio/ (cross-device, committed to repo)
+  //   2. IndexedDB parent recording (same-device only)
   const playLessonTile = useCallback((lessonId, nikudType, fallbackText) => {
     if (!lessonId || !nikudType) return;
     stopAll();
     isPlayingRef.current = true;
 
-    // Start TTS immediately — must be synchronous to satisfy iOS Safari's
-    // user-gesture requirement for speechSynthesis.speak().
+    // Fire TTS immediately — synchronous call preserves the iOS Safari gesture context.
     if (fallbackText && 'speechSynthesis' in window) {
       const u = buildUtterance(fallbackText, () => { isPlayingRef.current = false; });
       window.speechSynthesis.speak(u);
@@ -96,17 +97,30 @@ export function useAudio() {
       isPlayingRef.current = false;
     }
 
-    // In parallel: if a parent recording exists in IndexedDB, upgrade to it.
-    getRecording(`${lessonId}-${nikudType}`).then(stored => {
-      if (!stored) return;
+    // Helper: cancel TTS and play an audio src instead.
+    function upgradeToAudio(src) {
       window.speechSynthesis?.cancel();
       isPlayingRef.current = true;
-      const audio = new Audio(stored);
+      const audio = new Audio(src);
       audioRef.current = audio;
       audio.onended = () => { isPlayingRef.current = false; };
       audio.onerror  = () => { isPlayingRef.current = false; };
       audio.play().catch(() => { isPlayingRef.current = false; });
-    }).catch(() => { /* keep TTS */ });
+    }
+
+    // Background upgrade: static file → IndexedDB → keep TTS.
+    const base       = import.meta.env.BASE_URL ?? '/';
+    const staticPath = `${base}audio/${lessonId}-${nikudType}.webm`;
+    const dbKey      = `${lessonId}-${nikudType}`;
+
+    fetch(staticPath, { method: 'HEAD' })
+      .then(res => {
+        if (res.ok) { upgradeToAudio(staticPath); return; }
+        return getRecording(dbKey).then(stored => { if (stored) upgradeToAudio(stored); });
+      })
+      .catch(() =>
+        getRecording(dbKey).then(stored => { if (stored) upgradeToAudio(stored); }).catch(() => {})
+      );
   }, [stopAll]);
 
   return { playCardAudio, playText, playLessonTile, stopAll };
