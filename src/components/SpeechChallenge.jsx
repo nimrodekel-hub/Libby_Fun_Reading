@@ -86,7 +86,8 @@ function checkMatch(transcript, targetGroup, exampleWord) {
   }
 }
 
-const LISTEN_TIMEOUT_MS = 6000; // max time mic stays open waiting for speech
+// Total window in which we keep restarting recognition if iOS closes it early
+const LISTEN_WINDOW_MS = 6000;
 
 export default function SpeechChallenge({ lesson, onComplete }) {
   const { playLessonTile }  = useAudio();
@@ -96,12 +97,11 @@ export default function SpeechChallenge({ lesson, onComplete }) {
   const [earned,   setEarned]   = useState(0);
   const [lastWord, setLastWord] = useState('');
   const recognitionRef = useRef(null);
-  const listenTimerRef = useRef(null);
 
-  // Cleanly abort any active recognition session without triggering state updates
+  // Cleanly abort any active recognition session without triggering state updates.
+  // Nulling the handlers first prevents onend from firing after abort(),
+  // which stops the auto-restart loop when we intentionally stop.
   const stopMic = useCallback(() => {
-    clearTimeout(listenTimerRef.current);
-    listenTimerRef.current = null;
     const rec = recognitionRef.current;
     if (!rec) return;
     rec.onresult = null;
@@ -136,62 +136,58 @@ export default function SpeechChallenge({ lesson, onComplete }) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { setStatus(STATUS.unsupported); return; }
 
-    const rec = new SR();
-    rec.lang            = 'he-IL';
-    rec.continuous      = true;  // keep mic open until we explicitly stop it
-    rec.interimResults  = false;
-    rec.maxAlternatives = 1;
+    // iOS Safari closes SpeechRecognition after ~1 s regardless of `continuous`.
+    // Fix: track when the session started and relaunch transparently on every
+    // premature onend, until LISTEN_WINDOW_MS has elapsed.
+    // stopMic() nulls onend before abort(), so the loop stops cleanly on
+    // intentional stops (advancing, unmount, tab hide).
+    const sessionStart = Date.now();
 
-    rec.onstart = () => setStatus(STATUS.listening);
+    function launch() {
+      const rec = new SR();
+      rec.lang           = 'he-IL';
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
 
-    rec.onerror = (e) => {
-      // 'no-speech' is normal in continuous mode — ignore it, keep listening
-      if (e.error === 'no-speech') return;
-      stopMic();
-      setAttempts(n => n + 1);
-      setStatus(STATUS.fail);
-    };
-
-    rec.onend = () => {
-      // onend fires only when we abort() or a real error occurred
-      setStatus(s => {
-        if (s === STATUS.listening) {
-          setAttempts(n => n + 1);
-          return STATUS.fail;
-        }
-        return s;
-      });
-    };
-
-    rec.onresult = (e) => {
-      // With continuous mode, grab the latest final result
-      const result = e.results[e.results.length - 1];
-      if (!result.isFinal) return;
-      const top = result[0].transcript.trim();
-      setLastWord(top);
-      const matched = checkMatch(top, currentMeta.group, exWord);
-      stopMic();
-      if (matched) {
-        setStatus(STATUS.success);
-        setEarned(n => n + 5);
-      } else {
-        setAttempts(n => n + 1);
-        setStatus(STATUS.fail);
-      }
-    };
-
-    recognitionRef.current = rec;
-    rec.start();
-    setStatus(STATUS.listening);
-
-    // Hard timeout — close mic after LISTEN_TIMEOUT_MS even if no speech
-    listenTimerRef.current = setTimeout(() => {
-      if (recognitionRef.current) {
+      rec.onerror = (e) => {
+        if (e.error === 'no-speech') return; // onend will handle restart
         stopMic();
         setAttempts(n => n + 1);
         setStatus(STATUS.fail);
-      }
-    }, LISTEN_TIMEOUT_MS);
+      };
+
+      rec.onend = () => {
+        // onend only fires here if stopMic() was NOT called
+        // (stopMic nulls onend before abort, so this is a browser-side close)
+        recognitionRef.current = null;
+        if (Date.now() - sessionStart < LISTEN_WINDOW_MS) {
+          launch(); // relaunch transparently
+        } else {
+          setAttempts(n => n + 1);
+          setStatus(STATUS.fail);
+        }
+      };
+
+      rec.onresult = (e) => {
+        const top = e.results[0][0].transcript.trim();
+        setLastWord(top);
+        const matched = checkMatch(top, currentMeta.group, exWord);
+        stopMic();
+        if (matched) {
+          setStatus(STATUS.success);
+          setEarned(n => n + 5);
+        } else {
+          setAttempts(n => n + 1);
+          setStatus(STATUS.fail);
+        }
+      };
+
+      recognitionRef.current = rec;
+      try { rec.start(); } catch { /* browser blocked */ }
+    }
+
+    setStatus(STATUS.listening);
+    launch();
   }, [currentData, currentMeta, exWord, stopMic]);
 
   function advance() {
