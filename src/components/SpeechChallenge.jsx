@@ -86,17 +86,22 @@ function checkMatch(transcript, targetGroup, exampleWord) {
   }
 }
 
+const LISTEN_TIMEOUT_MS = 6000; // max time mic stays open waiting for speech
+
 export default function SpeechChallenge({ lesson, onComplete }) {
   const { playLessonTile }  = useAudio();
   const [tileIdx,  setTileIdx]  = useState(0);
   const [status,   setStatus]   = useState(STATUS.idle);
   const [attempts, setAttempts] = useState(0);
   const [earned,   setEarned]   = useState(0);
-  const [lastWord, setLastWord] = useState('');   // last SR transcript for debug hint
+  const [lastWord, setLastWord] = useState('');
   const recognitionRef = useRef(null);
+  const listenTimerRef = useRef(null);
 
   // Cleanly abort any active recognition session without triggering state updates
   const stopMic = useCallback(() => {
+    clearTimeout(listenTimerRef.current);
+    listenTimerRef.current = null;
     const rec = recognitionRef.current;
     if (!rec) return;
     rec.onresult = null;
@@ -127,25 +132,28 @@ export default function SpeechChallenge({ lesson, onComplete }) {
   const exWord      = extractExampleWord(currentData.example); // e.g. "נחש"
 
   const startListening = useCallback(() => {
-    stopMic(); // release any previous session before opening a new one
+    stopMic();
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { setStatus(STATUS.unsupported); return; }
 
     const rec = new SR();
     rec.lang            = 'he-IL';
+    rec.continuous      = true;  // keep mic open until we explicitly stop it
     rec.interimResults  = false;
-    rec.maxAlternatives = 1;   // only the single best guess
+    rec.maxAlternatives = 1;
 
     rec.onstart = () => setStatus(STATUS.listening);
 
-    rec.onerror = () => {
+    rec.onerror = (e) => {
+      // 'no-speech' is normal in continuous mode — ignore it, keep listening
+      if (e.error === 'no-speech') return;
       stopMic();
       setAttempts(n => n + 1);
       setStatus(STATUS.fail);
     };
 
     rec.onend = () => {
-      // If onresult didn't fire (no speech detected), treat as fail
+      // onend fires only when we abort() or a real error occurred
       setStatus(s => {
         if (s === STATUS.listening) {
           setAttempts(n => n + 1);
@@ -156,10 +164,13 @@ export default function SpeechChallenge({ lesson, onComplete }) {
     };
 
     rec.onresult = (e) => {
-      const top = e.results[0][0].transcript.trim();
+      // With continuous mode, grab the latest final result
+      const result = e.results[e.results.length - 1];
+      if (!result.isFinal) return;
+      const top = result[0].transcript.trim();
       setLastWord(top);
       const matched = checkMatch(top, currentMeta.group, exWord);
-      stopMic(); // release mic immediately after result — don't wait for onend
+      stopMic();
       if (matched) {
         setStatus(STATUS.success);
         setEarned(n => n + 5);
@@ -172,6 +183,15 @@ export default function SpeechChallenge({ lesson, onComplete }) {
     recognitionRef.current = rec;
     rec.start();
     setStatus(STATUS.listening);
+
+    // Hard timeout — close mic after LISTEN_TIMEOUT_MS even if no speech
+    listenTimerRef.current = setTimeout(() => {
+      if (recognitionRef.current) {
+        stopMic();
+        setAttempts(n => n + 1);
+        setStatus(STATUS.fail);
+      }
+    }, LISTEN_TIMEOUT_MS);
   }, [currentData, currentMeta, exWord, stopMic]);
 
   function advance() {

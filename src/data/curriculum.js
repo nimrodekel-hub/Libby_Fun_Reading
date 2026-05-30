@@ -39,7 +39,7 @@ export const LETTER_LESSONS = [
     id: 'dalet', base: 'ד', name: 'דָּלֶת', emoji: '🚪',
     nikud: {
       KAMATZ: { display: 'דָּ', phonetic: 'דָּ',  example: 'דָּג 🐟' },
-      PATACH: { display: 'דַּ', phonetic: 'דַּ',  example: 'דַּבּוֹרָה 🐝' },
+      PATACH: { display: 'דַּ', phonetic: 'דַּ',  example: 'דַּלְיָה 🌸' },
       SEGOL:  { display: 'דֶּ', phonetic: 'דֶּ',  example: 'דֶּלֶת 🚪' },
       TZERE:  { display: 'דֵּ', phonetic: 'דֵּ',  example: 'דֵּקֶל 🌴' },
       HIRIK:  { display: 'דִּ', phonetic: 'דִּ',  example: 'דִּינוֹזָאוּר 🦕' },
