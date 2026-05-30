@@ -79,27 +79,15 @@ export function useAudio() {
     }
   }, [stopAll]);
 
-  // 3-tier playback for curriculum tiles: static file → IndexedDB → TTS
+  // 2-tier playback for curriculum tiles: IndexedDB recording → TTS
+  // (Static-file tier omitted: no files deployed yet, and the async fetch
+  //  breaks the user-gesture chain on iOS Safari before TTS can fire.)
   const playLessonTile = useCallback(async (lessonId, nikudType, fallbackText) => {
     if (!lessonId || !nikudType) return;
     stopAll();
     isPlayingRef.current = true;
 
-    // Tier 1: static deployed file — HEAD probe avoids hanging on 404
-    try {
-      const path = `/audio/${lessonId}-${nikudType}.webm`;
-      const probe = await fetch(path, { method: 'HEAD' });
-      if (probe.ok) {
-        const audio = new Audio(path);
-        audioRef.current = audio;
-        audio.onended = () => { isPlayingRef.current = false; };
-        audio.onerror  = () => { isPlayingRef.current = false; };
-        await audio.play();
-        return;
-      }
-    } catch { /* no file — fall through */ }
-
-    // Tier 2: IndexedDB parent recording
+    // Tier 1: IndexedDB parent recording
     try {
       const stored = await getRecording(`${lessonId}-${nikudType}`);
       if (stored) {
@@ -112,7 +100,7 @@ export function useAudio() {
       }
     } catch { /* fall through */ }
 
-    // Tier 3: TTS
+    // Tier 2: TTS
     isPlayingRef.current = false;
     if (fallbackText && 'speechSynthesis' in window) {
       isPlayingRef.current = true;
