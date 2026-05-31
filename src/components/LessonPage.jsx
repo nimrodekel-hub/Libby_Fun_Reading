@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import LetterExplorer  from './LetterExplorer';
 
-const APP_VERSION = 22;
+const APP_VERSION = 23;
 import NikudQuiz       from './NikudQuiz';
 import SpeechChallenge from './SpeechChallenge';
 import MagicBackground from './MagicBackground';
@@ -14,6 +14,7 @@ export default function LessonPage({
   onSpeechComplete,
   score,
   onScoreTap,
+  onOpenSoundLab,
 }) {
   const quizRef   = useRef(null);
   const speechRef = useRef(null);
@@ -98,7 +99,17 @@ export default function LessonPage({
           ))}
         </div>
 
-        {/* Parent hint — small, tucked under tabs */}
+        {/* Sound Lab — kid-facing entry to focused ש/ס/צ pronunciation practice */}
+        <button
+          onClick={onOpenSoundLab}
+          className="max-w-lg mx-auto w-full mt-2 py-2 rounded-full text-white font-black font-rubik text-sm
+                     active:scale-95 transition-transform shadow flex items-center justify-center gap-2"
+          style={{ background: 'linear-gradient(to right, #10b981, #ec4899, #8b5cf6)' }}
+        >
+          🗣️ מַעְבְּדַת הַצְּלִילִים — תַּרְגְּלִי ס · שׁ · צ
+        </button>
+
+        {/* Parent hint — small, tucked under button */}
         <p className="max-w-lg mx-auto text-center text-purple-300 font-assistant mt-1"
            style={{ fontSize: '10px' }}>
           הורים: לחצו 5× על 👑 לאולפן ההקלטות 🎙️
