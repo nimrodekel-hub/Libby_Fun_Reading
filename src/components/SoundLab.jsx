@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Mic, Square, Volume2, RotateCcw } from 'lucide-react';
 import { useAudio } from '../hooks/useAudio';
 import { SOUND_TARGETS, stripEmoji } from '../data/soundPractice';
@@ -11,8 +11,9 @@ const THEME = {
 };
 
 // ── how many rounds per phase ─────────────────────────────────────────
-const LISTEN_ROUNDS = 6;
-const SAY_WORDS     = 4;
+const LISTEN_ROUNDS  = 6;
+const SAY_WORDS      = 4;
+const SAY_SENTENCES  = 3;
 
 function shuffle(arr) {
   const a = [...arr];
@@ -55,7 +56,7 @@ function buildListenRounds(target) {
 // ══════════════════════════════════════════════════════════════════════
 export default function SoundLab({ onClose }) {
   const [target, setTarget] = useState(null);
-  const [phase,  setPhase]  = useState('pick'); // pick | listen | say | celebrate
+  const [phase,  setPhase]  = useState('pick'); // pick | listen | say | sentence | celebrate
 
   function reset() { setTarget(null); setPhase('pick'); }
 
@@ -63,7 +64,8 @@ export default function SoundLab({ onClose }) {
     <div dir="rtl" className="flex flex-col min-h-[70vh]">
       {phase === 'pick'      && <PickSound      onPick={t => { setTarget(t); setPhase('listen'); }} onClose={onClose} />}
       {phase === 'listen'    && <ListenGame     key={`l-${target.id}`} target={target} onDone={() => setPhase('say')} />}
-      {phase === 'say'       && <SayGame        key={`s-${target.id}`} target={target} onDone={() => setPhase('celebrate')} />}
+      {phase === 'say'       && <SayGame        key={`s-${target.id}`} target={target} onDone={() => setPhase('sentence')} />}
+      {phase === 'sentence'  && <SaySentences   key={`ss-${target.id}`} target={target} onDone={() => setPhase('celebrate')} />}
       {phase === 'celebrate' && <Celebrate      target={target} onAgain={reset} onOther={reset} />}
     </div>
   );
@@ -205,7 +207,7 @@ function ListenGame({ target, onDone }) {
 function SayGame({ target, onDone }) {
   const { playText, stopAll } = useAudio();
   const th      = THEME[target.color];
-  const words   = target.words.slice(0, SAY_WORDS);
+  const [words] = useState(() => shuffle([...target.words]).slice(0, SAY_WORDS));
   const [idx,   setIdx]  = useState(0);
   const word             = words[idx];
   const last             = idx >= words.length - 1;
@@ -388,7 +390,54 @@ function WordRecorder({ word, th, onPlayModel, onNext, isLast }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// 4. Celebrate!
+// 4. Say sentences — hear full sentence → record → self-rate
+// ══════════════════════════════════════════════════════════════════════
+function SaySentences({ target, onDone }) {
+  const { playText, stopAll } = useAudio();
+  const th        = THEME[target.color];
+  const sentences = useMemo(() => shuffle([...target.sentences]).slice(0, SAY_SENTENCES), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [idx, setIdx] = useState(0);
+  const sentence      = sentences[idx];
+  const last          = idx >= sentences.length - 1;
+
+  useEffect(() => {
+    const t = setTimeout(() => playText('עכשיו נגיד משפטים שלמים'), 400);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function next() {
+    stopAll();
+    if (last) { onDone(); }
+    else { setIdx(i => i + 1); }
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-5 py-2">
+      <div className="flex items-center gap-3">
+        <span style={{ fontSize: '2.5rem' }}>{target.emoji}</span>
+        <Dots total={sentences.length} done={idx} color={th.btn} />
+      </div>
+
+      <div
+        className="flex flex-col items-center justify-center rounded-3xl border-4 py-8 w-full gap-2"
+        style={{ background: th.bg, borderColor: th.border }}
+      >
+        <span style={{ fontSize: '6rem', lineHeight: '6.5rem' }}>{sentence.emoji}</span>
+      </div>
+
+      <WordRecorder
+        word={sentence.text}
+        th={th}
+        onPlayModel={() => playText(sentence.text)}
+        onNext={next}
+        isLast={last}
+      />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// 5. Celebrate!
 // ══════════════════════════════════════════════════════════════════════
 function Celebrate({ target, onAgain }) {
   const { playText } = useAudio();
