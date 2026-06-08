@@ -1,6 +1,7 @@
-const OWNER  = 'nimrodekel-hub';
-const REPO   = 'Libby_Fun_Reading';
-const BRANCH = 'main';
+const OWNER       = 'nimrodekel-hub';
+const REPO        = 'Libby_Fun_Reading';
+const BRANCH      = 'main';
+const CODE_BRANCH = 'claude/pensive-maxwell-3Q5u3';
 
 const TOKEN_KEY = 'gh_recordings_token';
 export const getToken   = ()  => localStorage.getItem(TOKEN_KEY) ?? '';
@@ -55,6 +56,35 @@ export async function uploadRecording(token, key, dataUrl) {
     throw new Error(err.message ?? `HTTP ${res.status}`);
   }
   return true;
+}
+
+/**
+ * GitHub doesn't auto-trigger CI when audio is uploaded via Contents API.
+ * This commits a tiny timestamp file to the code branch, which DOES trigger CI.
+ * CI then overlays audio from main and deploys to Pages.
+ */
+export async function triggerDeploy(token) {
+  const path = 'public/audio/.deploy-trigger';
+  const url  = apiUrl(path);
+
+  let sha;
+  const existing = await fetch(`${url}?ref=${encodeURIComponent(CODE_BRANCH)}`, {
+    headers: headers(token),
+  }).catch(() => null);
+  if (existing?.ok) {
+    sha = (await existing.json()).sha;
+  }
+
+  await fetch(url, {
+    method: 'PUT',
+    headers: headers(token),
+    body: JSON.stringify({
+      message: '🚀 trigger deploy after recording upload',
+      content: btoa(new Date().toISOString()),
+      branch:  CODE_BRANCH,
+      ...(sha ? { sha } : {}),
+    }),
+  }).catch(() => null);
 }
 
 /** Connectivity + write-permission check.

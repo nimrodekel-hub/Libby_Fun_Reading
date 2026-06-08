@@ -5,7 +5,7 @@ import { loadAllWordOverrides, saveWordOverride } from '../utils/wordOverrides';
 import { LETTER_CARDS } from '../data/letters';
 import { WORD_CARDS }   from '../data/words';
 import { LETTER_LESSONS, NIKUD_META, NIKUD_ORDER } from '../data/curriculum';
-import { getToken, saveToken, clearToken, uploadRecording, verifyToken } from '../utils/githubSync';
+import { getToken, saveToken, clearToken, uploadRecording, triggerDeploy, verifyToken } from '../utils/githubSync';
 
 const ALL_CARDS = [
   { group: 'שַׁלַב 1 — אוֹתִיּוֹת', cards: LETTER_CARDS },
@@ -117,6 +117,10 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
     }
     setUploading(false);
     setUploadResult(failed === 0 ? 'ok' : 'partial');
+
+    // Trigger CI by committing to the code branch — GitHub doesn't auto-trigger
+    // CI when audio is uploaded via the Contents API to main.
+    if (failed === 0) triggerDeploy(ghToken).catch(() => null);
   }
 
   return (
