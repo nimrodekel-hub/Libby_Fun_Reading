@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import LessonPage      from './LessonPage';
 import MagicBackground from './MagicBackground';
 import ConfettiBurst   from './ConfettiBurst';
@@ -6,6 +6,7 @@ import RecordingStudio from './RecordingStudio';
 import SoundLab        from './SoundLab';
 import { useLessonState } from '../hooks/useLessonState';
 import { loadAllWordOverrides } from '../utils/wordOverrides';
+import { syncAudio } from '../utils/audioSync';
 
 function applyOverrides(lesson, overrides) {
   if (!lesson || !overrides) return lesson;
@@ -25,6 +26,9 @@ export default function GameBoard() {
   const [tapCount,      setTapCount]      = useState(0);
   const [tapTimer,      setTapTimer]      = useState(null);
   const [wordOverrides, setWordOverrides] = useState(() => loadAllWordOverrides());
+
+  // Silently download any new recordings from GitHub to IndexedDB on first load
+  useEffect(() => { syncAudio().catch(() => null); }, []);
 
   const handleWordChanged = useCallback((key, newExample) => {
     setWordOverrides(prev => ({ ...prev, [key]: newExample }));

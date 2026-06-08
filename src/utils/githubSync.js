@@ -140,6 +140,48 @@ export async function triggerDeploy(token) {
   }).catch(() => null);
 }
 
+/**
+ * Fetch the existing manifest from main, merge new keys, and re-upload.
+ * filesMap: { [key]: 'wav', ... }
+ */
+export async function uploadManifest(token, filesMap) {
+  const path = 'public/audio/manifest.json';
+  const url  = apiUrl(path);
+
+  let existingFiles = {};
+  let sha;
+  const res = await fetch(`${url}?ref=${encodeURIComponent(BRANCH)}`, {
+    headers: headers(token),
+  }).catch(() => null);
+  if (res?.ok) {
+    const data = await res.json().catch(() => ({}));
+    sha = data.sha;
+    try {
+      const decoded = atob(data.content.replace(/\n/g, ''));
+      existingFiles = JSON.parse(decoded).files ?? {};
+    } catch { /* start fresh */ }
+  }
+
+  const merged  = { v: 1, ts: new Date().toISOString(), files: { ...existingFiles, ...filesMap } };
+  const content = btoa(JSON.stringify(merged, null, 2));
+
+  const putRes = await fetch(url, {
+    method:  'PUT',
+    headers: headers(token),
+    body:    JSON.stringify({
+      message: '🗂️ update audio manifest',
+      content,
+      branch:  BRANCH,
+      ...(sha ? { sha } : {}),
+    }),
+  });
+  if (!putRes.ok) {
+    const err = await putRes.json().catch(() => ({}));
+    throw new Error(err.message ?? `HTTP ${putRes.status}`);
+  }
+  return true;
+}
+
 /** Connectivity + write-permission check.
  *  Returns 'ok' | 'no_write' | 'invalid' | 'network_error'
  */

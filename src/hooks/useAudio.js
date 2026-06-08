@@ -123,8 +123,13 @@ export function useAudio() {
         });
     }
 
-    // 2 — Background: try static files (.wav first for iOS compat, .webm fallback)
+    // 2 — Background: IndexedDB first (offline — picks up auto-synced recordings)
     async function upgradeFromStatic() {
+      try {
+        const stored = await getRecording(key);
+        if (stored) { tryAudio(stored); return; }
+      } catch { /* fall through to network */ }
+      // 3 — Network: static files (.wav first for iOS compat, .webm fallback)
       for (const ext of AUDIO_EXTS) {
         const src = `${base}audio/${key}${ext}`;
         try {
@@ -132,11 +137,6 @@ export function useAudio() {
           if (res.ok) { tryAudio(src); return; }
         } catch { /* try next */ }
       }
-      // 3 — Last resort: IndexedDB (same device only)
-      try {
-        const stored = await getRecording(key);
-        if (stored) tryAudio(stored);
-      } catch { /* keep TTS */ }
     }
 
     upgradeFromStatic();

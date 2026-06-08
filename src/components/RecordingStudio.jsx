@@ -5,7 +5,8 @@ import { loadAllWordOverrides, saveWordOverride } from '../utils/wordOverrides';
 import { LETTER_CARDS } from '../data/letters';
 import { WORD_CARDS }   from '../data/words';
 import { LETTER_LESSONS, NIKUD_META, NIKUD_ORDER } from '../data/curriculum';
-import { getToken, saveToken, clearToken, uploadRecording, triggerDeploy, verifyToken, AUDIO_EXTS } from '../utils/githubSync';
+import { getToken, saveToken, clearToken, uploadRecording, uploadManifest, triggerDeploy, verifyToken, AUDIO_EXTS } from '../utils/githubSync';
+import { fetchManifest, syncAudio, countLocalCached } from '../utils/audioSync';
 
 const ALL_CARDS = [
   { group: 'שַׁלַב 1 — אוֹתִיּוֹת', cards: LETTER_CARDS },
@@ -23,6 +24,10 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
   const [uploading,           setUploading]           = useState(false);
   const [uploadProgress,      setUploadProgress]      = useState({ done: 0, total: 0 });
   const [uploadResult,        setUploadResult]        = useState(null); // 'ok' | 'err'
+  const [manifest,            setManifest]            = useState(null);
+  const [cachedCount,         setCachedCount]         = useState(0);
+  const [syncing,             setSyncing]             = useState(false);
+  const [syncResult,          setSyncResult]          = useState(null);
 
   // Load which keys have recordings in IndexedDB
   useEffect(() => {
@@ -45,30 +50,21 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
     load();
   }, []);
 
-  // Check ALL curriculum keys against GitHub Pages (covers recordings from any device).
-  // Tries .wav first (new universal format), then .webm (old format) for each key.
+  // Fetch manifest once — tells us which recordings are published and available.
   useEffect(() => {
-    const base = import.meta.env.BASE_URL ?? '/';
-    const allKeys = LETTER_LESSONS.flatMap(lesson =>
-      NIKUD_ORDER.map(nikudType => `${lesson.id}-${nikudType}`)
-    );
-    setCheckingDeploy(true);
-    Promise.all(
-      allKeys.map(key =>
-        AUDIO_EXTS.reduce(
-          (chain, ext) => chain.then(found =>
-            found ?? fetch(`${base}audio/${key}${ext}`, { method: 'HEAD' })
-              .then(r => r.ok ? key : null)
-              .catch(() => null)
-          ),
-          Promise.resolve(null)
-        )
-      )
-    ).then(results => {
-      setDeployedIds(new Set(results.filter(Boolean)));
+    async function loadManifest() {
+      setCheckingDeploy(true);
+      const m = await fetchManifest();
+      setManifest(m);
+      if (m?.files) {
+        setDeployedIds(new Set(Object.keys(m.files)));
+        const cached = await countLocalCached(m.files);
+        setCachedCount(cached);
+      }
       setCheckingDeploy(false);
-    });
-  }, []); // run once on mount
+    }
+    loadManifest();
+  }, []);
 
   function onSaved(cardId)          { setSavedIds(prev => new Set([...prev, cardId])); }
   function onDeleted(cardId)        { setSavedIds(prev => { const n = new Set(prev); n.delete(cardId); return n; }); }
@@ -93,6 +89,22 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
     setUploadResult(null);
   }
 
+  async function handleSync(force = false) {
+    setSyncing(true);
+    setSyncResult(null);
+    const result = await syncAudio({ force }).catch(() => ({ downloaded: 0, skipped: 0, total: 0 }));
+    setSyncResult(result);
+    setSyncing(false);
+    // Refresh cached count + local recordings
+    if (manifest?.files) {
+      const cached = await countLocalCached(manifest.files);
+      setCachedCount(cached);
+    }
+    const curriculumKeys = LETTER_LESSONS.flatMap(l => NIKUD_ORDER.map(n => `${l.id}-${n}`));
+    const cResults = await Promise.all(curriculumKeys.map(k => getRecording(k).then(v => v ? k : null)));
+    setSavedCurriculumIds(new Set(cResults.filter(Boolean)));
+  }
+
   // Keys recorded locally and not yet uploaded this session
   const allKeys = [...savedCurriculumIds];
   const pendingKeys = allKeys.filter(k => !deployedIds.has(k) && !uploadedIds.has(k));
@@ -103,6 +115,7 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
     setUploadResult(null);
     setUploadProgress({ done: 0, total: keys.length });
     let failed = 0;
+    const uploaded = [];
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i];
       try {
@@ -110,6 +123,7 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
         if (!dataUrl) { failed++; continue; }
         await uploadRecording(ghToken, key, dataUrl);
         onCurriculumUploaded(key);
+        uploaded.push(key);
       } catch (err) {
         if (err?.message === 'TOKEN_INVALID' || err?.message === 'TOKEN_NO_WRITE') {
           if (err.message === 'TOKEN_NO_WRITE') setUploadResult('no_write');
@@ -124,9 +138,13 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
     setUploading(false);
     setUploadResult(failed === 0 ? 'ok' : 'partial');
 
-    // Trigger CI by committing to the code branch — GitHub doesn't auto-trigger
-    // CI when audio is uploaded via the Contents API to main.
-    if (failed === 0) triggerDeploy(ghToken).catch(() => null);
+    if (uploaded.length > 0) {
+      const filesMap = Object.fromEntries(uploaded.map(k => [k, 'wav']));
+      // Update manifest so other devices can discover and download the new files
+      uploadManifest(ghToken, filesMap).catch(() => null);
+      // Commit trigger file to code branch so GitHub Actions redeploys Pages
+      triggerDeploy(ghToken).catch(() => null);
+    }
   }
 
   return (
@@ -172,6 +190,53 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
           </span>
         </div>
       </div>
+
+      {/* ── Sync Panel ────────────────────────────────────────── */}
+      {(manifest?.files || checkingDeploy) && (
+        <div className="bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 space-y-2 font-assistant text-sm">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="font-black text-sky-700 text-sm">📥 הקלטות מהענן</p>
+            <div className="flex gap-2 text-xs">
+              {manifest?.files && (
+                <>
+                  <span className="bg-sky-100 text-sky-700 rounded-full px-2 py-0.5 font-bold">
+                    ☁️ {Object.keys(manifest.files).length} זמינות
+                  </span>
+                  <span className="bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5 font-bold">
+                    💾 {cachedCount} שמורות
+                  </span>
+                </>
+              )}
+              {checkingDeploy && <span className="text-sky-400 animate-pulse">בודק…</span>}
+            </div>
+          </div>
+
+          {manifest?.files && cachedCount < Object.keys(manifest.files).length && (
+            <button
+              onClick={() => handleSync()}
+              disabled={syncing}
+              className="w-full py-2 rounded-xl text-white font-black text-sm active:scale-95 transition-all disabled:opacity-60"
+              style={{ background: 'linear-gradient(to right, #0ea5e9, #06b6d4)' }}
+            >
+              {syncing
+                ? <><span className="animate-spin inline-block">⏳</span> מוריד…</>
+                : `⬇️ הורד הכל למכשיר (${Object.keys(manifest.files).length - cachedCount} חסרות)`}
+            </button>
+          )}
+          {manifest?.files && cachedCount > 0 && cachedCount === Object.keys(manifest.files).length && (
+            <p className="text-center text-emerald-600 font-bold text-xs py-1">
+              ✅ כל ההקלטות שמורות — עובד ללא אינטרנט!
+            </p>
+          )}
+          {syncResult && (
+            <p className="text-xs text-sky-600 font-bold text-center">
+              {syncResult.downloaded > 0
+                ? `✓ הורדו ${syncResult.downloaded} קבצים חדשים`
+                : '✓ הכל מעודכן'}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* ── Curriculum tiles section ─────────────────────────── */}
       <section>
