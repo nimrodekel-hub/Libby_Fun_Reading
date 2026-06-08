@@ -116,7 +116,7 @@ export const LETTER_LESSONS = [
       TZERE:  { display: 'אֵ', phonetic: 'אֵ', example: 'אֵם 👩',       alts: ['אֵשׁ 🔥', 'אֵלָה 🌳', 'אֵיל 🦌'] },
       HIRIK:  { display: 'אִ', phonetic: 'אִ', example: 'אִישׁ 🧔',     alts: ['אִמָּא 👩', 'אִיָּה 🦅', 'אִיִּי 🏝️'] },
       HOLAM:  { display: 'אֹ', phonetic: 'אֹ', example: 'אֹכֶל 🍽️',   alts: ['אוֹטוֹ 🚗', 'אוֹפַנַּיִם 🚲', 'אוֹצָר 💎'] },
-      KUBUTZ: { display: 'אֻ', phonetic: 'אֻ', example: 'אֻמָּה 🌍',   alts: ['אֻמְנָם 🤔'] },
+      KUBUTZ: { display: 'אֻ', phonetic: 'אֻ', example: 'אֻמָּה 🌍',   alts: ['אֻמְנָם 🤔', 'אֻמְנוּת 🎨'] },
     },
   },
   {
@@ -128,7 +128,7 @@ export const LETTER_LESSONS = [
       TZERE:  { display: 'תֵּ', phonetic: 'תֵּ', example: 'תֵּה 🍵',       alts: ['תֵּבָה 📦', 'תֵּל ⛰️', 'תֵּבֵל 🌍'] },
       HIRIK:  { display: 'תִּ', phonetic: 'תִּ', example: 'תִּינוֹק 👶',  alts: ['תִּירָס 🌽', 'תִּיק 🎒', 'תִּרְמוֹס 🧃'] },
       HOLAM:  { display: 'תֹּ', phonetic: 'תֹּ', example: 'תּוֹף 🥁',    alts: ['תּוֹלַעַת 🐛', 'תּוֹר 🕊️', 'תּוֹכִי 🦜'] },
-      KUBUTZ: { display: 'תֻּ', phonetic: 'תֻּ', example: 'תֻּמָּה 💛',   alts: [] },
+      KUBUTZ: { display: 'תֻּ', phonetic: 'תֻּ', example: 'תֻּקַּן 🔧',   alts: [] },
     },
   },
   {
@@ -161,7 +161,7 @@ export const LETTER_LESSONS = [
       KAMATZ: { display: 'גָּ', phonetic: 'גָּ', example: 'גָּמָל 🐪',    alts: ['גָּן 🌻', 'גָּשֶׁם 🌧️', 'גָּבִישׁ 💎'] },
       PATACH: { display: 'גַּ', phonetic: 'גַּ', example: 'גַּן 🌻',      alts: ['גַּלְגַּל 🎡', 'גַּב 🫃', 'גַּרְזֶן 🪓'] },
       SEGOL:  { display: 'גֶּ', phonetic: 'גֶּ', example: 'גֶּשֶׁם 🌧️',  alts: ['גֶּזֶר 🥕', 'גֶּפֶן 🍇', 'גֶּלֶד 🧊'] },
-      TZERE:  { display: 'גֵּ', phonetic: 'גֵּ', example: 'גֵּרָה 🐄',    alts: [] },
+      TZERE:  { display: 'גֵּ', phonetic: 'גֵּ', example: 'גֵּאֶה 😊',   alts: [] },
       HIRIK:  { display: 'גִּ', phonetic: 'גִּ', example: 'גִּירָה 🖍️',  alts: ['גִּיבּוֹר 🦸', 'גִּינָה 🌻', 'גִּיגִית 🛁'] },
       HOLAM:  { display: 'גֹּ', phonetic: 'גֹּ', example: 'גּוֹרִיל 🦍',  alts: ['גּוֹלֵם 🗿', 'גּוֹלָן ⛰️'] },
       KUBUTZ: { display: 'גֻּ', phonetic: 'גֻּ', example: 'גֻּלָּה 🪀',   alts: ['גֻּלְגֹּלֶת 💀'] },
@@ -188,7 +188,7 @@ export const LETTER_LESSONS = [
       TZERE:  { display: 'יֵ', phonetic: 'יֵ', example: 'יֵשׁ ✅',           alts: ['יֵין 🍷', 'יֵלֵךְ 🚶'] },
       HIRIK:  { display: 'יִ', phonetic: 'יִ', example: 'יִשְׂרָאֵל 🇮🇱', alts: ['יִצְחָק 😂', 'יִחְיֶה 🙏'] },
       HOLAM:  { display: 'יֹ', phonetic: 'יֹ', example: 'יוֹם 📅',          alts: ['יוֹנָה 🕊️', 'יוֹגוּרְט 🥛', 'יוֹסֵף 👦'] },
-      KUBUTZ: { display: 'יֻ', phonetic: 'יֻ', example: 'יֻלַּד 👶',        alts: [] },
+      KUBUTZ: { display: 'יֻ', phonetic: 'יֻ', example: 'יֻצַּר 🎨',       alts: [] },
     },
   },
   {
@@ -200,7 +200,7 @@ export const LETTER_LESSONS = [
       TZERE:  { display: 'עֵ', phonetic: 'עֵ', example: 'עֵגֶל 🐄',    alts: ['עֵפִיפוֹן 🪁', 'עֵין 👁️'] },
       HIRIK:  { display: 'עִ', phonetic: 'עִ', example: 'עִיר 🏙️',   alts: ['עִיפָּרוֹן ✏️', 'עִינַיִם 👀', 'עִיגּוּל ⭕'] },
       HOLAM:  { display: 'עֹ', phonetic: 'עֹ', example: 'עוֹף 🐦',    alts: ['עוֹגָה 🎂', 'עוֹלָם 🌍', 'עוֹגַן ⚓'] },
-      KUBUTZ: { display: 'עֻ', phonetic: 'עֻ', example: 'עֻז 💪',      alts: [] },
+      KUBUTZ: { display: 'עֻ', phonetic: 'עֻ', example: 'עֻץ 🌳',      alts: [] },
     },
   },
   {
@@ -233,10 +233,10 @@ export const LETTER_LESSONS = [
       KAMATZ: { display: 'וָ', phonetic: 'וָ', example: 'וָו 🪝',       alts: ['וָרֵד 🌹'] },
       PATACH: { display: 'וַ', phonetic: 'וַ', example: 'וַנִּיל 🍦',   alts: ['וַעַד 🏢'] },
       SEGOL:  { display: 'וֶ', phonetic: 'וֶ', example: 'וֶרֶד 🌹',     alts: [] },
-      TZERE:  { display: 'וֵ', phonetic: 'וֵ', example: 'וֵילוֹן 🪟',  alts: ['וֵי 😱'] },
+      TZERE:  { display: 'וֵ', phonetic: 'וֵ', example: 'וֵנוּס 🪐',  alts: ['וֵי 😱'] },
       HIRIK:  { display: 'וִ', phonetic: 'וִ', example: 'וִידֵאוֹ 📹', alts: ['וִילָה 🏡'] },
-      HOLAM:  { display: 'וֹ', phonetic: 'וֹ', example: 'וֹלְגָּה 🌊',  alts: [] },
-      KUBUTZ: { display: 'וֻ', phonetic: 'וֻ', example: 'וֻו 🪝',       alts: [] },
+      HOLAM:  { display: 'וֹ', phonetic: 'וֹ', example: 'וֹלְט ⚡',     alts: [] },
+      KUBUTZ: { display: 'וֻ', phonetic: 'וֻ', example: 'וֻלְקָן 🌋',  alts: [] },
     },
   },
   {
@@ -248,7 +248,7 @@ export const LETTER_LESSONS = [
       TZERE:  { display: 'זֵ', phonetic: 'זֵ', example: 'זֵר 💐',      alts: ['זֵכֶר 📖'] },
       HIRIK:  { display: 'זִ', phonetic: 'זִ', example: 'זִמְרָה 🎵',  alts: ['זִירָה 🥊', 'זִכָּרוֹן 💭'] },
       HOLAM:  { display: 'זֹ', phonetic: 'זֹ', example: 'זוֹחֵל 🐍',  alts: ['זוֹג 💑', 'זוֹהָר ✨'] },
-      KUBUTZ: { display: 'זֻ', phonetic: 'זֻ', example: 'זֻמַּר 🎵',   alts: [] },
+      KUBUTZ: { display: 'זֻ', phonetic: 'זֻ', example: 'זֻמַּן 🎉',   alts: [] },
     },
   },
   {
