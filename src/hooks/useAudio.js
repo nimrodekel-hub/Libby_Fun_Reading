@@ -84,11 +84,10 @@ export function useAudio() {
   //
   // Strategy:
   //   1. Fire TTS immediately (synchronous — preserves iOS Safari gesture context).
-  //   2. In the background, search for a static audio file (.wav first, then .webm).
-  //   3. Try IndexedDB as last resort before keeping TTS.
-  //   4. Only cancel TTS once we confirm the audio ACTUALLY starts playing
-  //      (audio.play() resolves). If it fails (unsupported format, network), TTS
-  //      continues — no silent failure.
+  //   2. In the background, check IndexedDB first (fast, offline-capable).
+  //   3. Fall back to network static files (.wav → .webm) if not in IndexedDB.
+  //   4. Cancel TTS as soon as a source is found — no waiting for play() to resolve,
+  //      so the parent recording takes over in ~5 ms with no audible TTS bleed.
   const playLessonTile = useCallback((lessonId, nikudType, fallbackText) => {
     if (!lessonId || !nikudType) return;
     stopAll();
@@ -105,22 +104,16 @@ export function useAudio() {
     const base = import.meta.env.BASE_URL ?? '/';
     const key  = `${lessonId}-${nikudType}`;
 
-    // Attempt to play an audio src. Cancels TTS only if playback actually starts.
+    // Cancel TTS immediately and play src. If play() fails, brief silence — acceptable.
     function tryAudio(src) {
+      window.speechSynthesis?.cancel();
       const audio = new Audio(src);
       audioRef.current = audio;
       audio.onended = () => { isPlayingRef.current = false; };
-      audio.onerror = () => { isPlayingRef.current = false; }; // TTS stays if format unsupported
+      audio.onerror = () => { isPlayingRef.current = false; };
       audio.play()
-        .then(() => {
-          // Playback started — silence TTS now
-          window.speechSynthesis?.cancel();
-          isPlayingRef.current = true;
-        })
-        .catch(() => {
-          // Can't play (unsupported format or gesture context lost) — TTS continues
-          isPlayingRef.current = false;
-        });
+        .then(() => { isPlayingRef.current = true; })
+        .catch(() => { isPlayingRef.current = false; });
     }
 
     // 2 — Background: IndexedDB first (offline — picks up auto-synced recordings)
