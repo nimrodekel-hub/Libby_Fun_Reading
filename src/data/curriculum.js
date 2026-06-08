@@ -227,6 +227,54 @@ export const LETTER_LESSONS = [
       KUBUTZ: { display: 'קֻ', phonetic: 'קֻ', example: 'קֻבִּיָּה 🎲', alts: ['קֻפָּה 💰'] },
     },
   },
+  {
+    id: 'vav', base: 'ו', name: 'וָו', emoji: '🪝',
+    nikud: {
+      KAMATZ: { display: 'וָ', phonetic: 'וָ', example: 'וָו 🪝',       alts: ['וָרֵד 🌹'] },
+      PATACH: { display: 'וַ', phonetic: 'וַ', example: 'וַנִּיל 🍦',   alts: ['וַעַד 🏢'] },
+      SEGOL:  { display: 'וֶ', phonetic: 'וֶ', example: 'וֶרֶד 🌹',     alts: [] },
+      TZERE:  { display: 'וֵ', phonetic: 'וֵ', example: 'וֵילוֹן 🪟',  alts: ['וֵי 😱'] },
+      HIRIK:  { display: 'וִ', phonetic: 'וִ', example: 'וִידֵאוֹ 📹', alts: ['וִילָה 🏡'] },
+      HOLAM:  { display: 'וֹ', phonetic: 'וֹ', example: 'וֹלְגָּה 🌊',  alts: [] },
+      KUBUTZ: { display: 'וֻ', phonetic: 'וֻ', example: 'וֻו 🪝',       alts: [] },
+    },
+  },
+  {
+    id: 'zayin', base: 'ז', name: 'זַיִן', emoji: '🥇',
+    nikud: {
+      KAMATZ: { display: 'זָ', phonetic: 'זָ', example: 'זָהָב 🥇',    alts: ['זָנָב 🐕', 'זָקֵן 👴', 'זָכָר 👦'] },
+      PATACH: { display: 'זַ', phonetic: 'זַ', example: 'זַמָּר 🎤',   alts: ['זַיִת 🫒', 'זַרְקוֹר 🔦'] },
+      SEGOL:  { display: 'זֶ', phonetic: 'זֶ', example: 'זֶה 👆',      alts: ['זֶרַע 🌱', 'זֶרֶם ⚡'] },
+      TZERE:  { display: 'זֵ', phonetic: 'זֵ', example: 'זֵר 💐',      alts: ['זֵכֶר 📖'] },
+      HIRIK:  { display: 'זִ', phonetic: 'זִ', example: 'זִמְרָה 🎵',  alts: ['זִירָה 🥊', 'זִכָּרוֹן 💭'] },
+      HOLAM:  { display: 'זֹ', phonetic: 'זֹ', example: 'זוֹחֵל 🐍',  alts: ['זוֹג 💑', 'זוֹהָר ✨'] },
+      KUBUTZ: { display: 'זֻ', phonetic: 'זֻ', example: 'זֻמַּר 🎵',   alts: [] },
+    },
+  },
+  {
+    id: 'tet', base: 'ט', name: 'טֵית', emoji: '🎒',
+    nikud: {
+      KAMATZ: { display: 'טָ', phonetic: 'טָ', example: 'טָס ✈️',         alts: ['טָלֶה 🐑', 'טָהוֹר ✨'] },
+      PATACH: { display: 'טַ', phonetic: 'טַ', example: 'טַבַּעַת 💍',    alts: ['טַיָּס ✈️', 'טַבָּח 👨‍🍳'] },
+      SEGOL:  { display: 'טֶ', phonetic: 'טֶ', example: 'טֶלֶפוֹן 📱',   alts: ['טֶלֶוִיזְיָה 📺', 'טֶקֶס 🎉'] },
+      TZERE:  { display: 'טֵ', phonetic: 'טֵ', example: 'טֵנִיס 🎾',     alts: ['טֵלֵסְקוֹפּ 🔭'] },
+      HIRIK:  { display: 'טִ', phonetic: 'טִ', example: 'טִיּוּל 🎒',   alts: ['טִירָה 🏰', 'טִיגְרִיס 🌊'] },
+      HOLAM:  { display: 'טֹ', phonetic: 'טֹ', example: 'טוֹבָה 🌟',    alts: ['טוֹת 🍓', 'טוֹר 🗼'] },
+      KUBUTZ: { display: 'טֻ', phonetic: 'טֻ', example: 'טֻגַּן 🍳',     alts: [] },
+    },
+  },
+  {
+    id: 'tsadi', base: 'צ', name: 'צַדִּי', emoji: '🐦',
+    nikud: {
+      KAMATZ: { display: 'צָ', phonetic: 'צָ', example: 'צָב 🐢',         alts: ['צָמִיד 📿', 'צָהֹב 💛', 'צָבָא 🎖️'] },
+      PATACH: { display: 'צַ', phonetic: 'צַ', example: 'צַלַּחַת 🍽️',   alts: ['צַבָּר 🌵', 'צַפְרְדֵּעַ 🐸', 'צַחְקָן 😂'] },
+      SEGOL:  { display: 'צֶ', phonetic: 'צֶ', example: 'צֶמֶר 🧶',       alts: ['צֶבַע 🎨', 'צֶלֶם 📷'] },
+      TZERE:  { display: 'צֵ', phonetic: 'צֵ', example: 'צֵל 🌳',         alts: ['צֵידָה 🍱'] },
+      HIRIK:  { display: 'צִ', phonetic: 'צִ', example: 'צִפּוֹר 🐦',     alts: ['צִיּוּר 🎨', 'צִמּוּק 🍇', 'צִלְמָן 📷'] },
+      HOLAM:  { display: 'צֹ', phonetic: 'צֹ', example: 'צוֹלֵל 🤿',     alts: ['צוֹמֵחַ 🌱', 'צוֹחֵק 😄'] },
+      KUBUTZ: { display: 'צֻ', phonetic: 'צֻ', example: 'צֻלַּם 📷',      alts: [] },
+    },
+  },
 ];
 
 /**
