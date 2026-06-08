@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import JSZip from 'jszip';
-import { Mic, Square, Play, Trash2, Check, Download, Upload, Pencil } from 'lucide-react';
+import { Mic, Square, Play, Trash2, Check, Upload, Pencil } from 'lucide-react';
 import { saveRecording, getRecording, deleteRecording } from '../utils/audioStorage';
 import { loadAllWordOverrides, saveWordOverride } from '../utils/wordOverrides';
 import { LETTER_CARDS } from '../data/letters';
 import { WORD_CARDS }   from '../data/words';
 import { LETTER_LESSONS, NIKUD_META, NIKUD_ORDER } from '../data/curriculum';
+import { getToken, saveToken, clearToken, uploadRecording, verifyToken } from '../utils/githubSync';
 
 const ALL_CARDS = [
   { group: 'שַׁלַב 1 — אוֹתִיּוֹת', cards: LETTER_CARDS },
@@ -13,11 +13,16 @@ const ALL_CARDS = [
 ];
 
 export default function RecordingStudio({ onWordChanged: notifyParent }) {
-  const [savedIds,         setSavedIds]         = useState(new Set());
-  const [savedCurriculumIds, setSavedCurriculumIds] = useState(new Set());
-  const [deployedIds,      setDeployedIds]      = useState(new Set());
-  const [checkingDeploy,   setCheckingDeploy]   = useState(false);
-  const [wordOverrides,    setWordOverrides]    = useState(() => loadAllWordOverrides());
+  const [savedIds,            setSavedIds]            = useState(new Set());
+  const [savedCurriculumIds,  setSavedCurriculumIds]  = useState(new Set());
+  const [deployedIds,         setDeployedIds]         = useState(new Set());
+  const [uploadedIds,         setUploadedIds]         = useState(new Set());
+  const [checkingDeploy,      setCheckingDeploy]      = useState(false);
+  const [wordOverrides,       setWordOverrides]       = useState(() => loadAllWordOverrides());
+  const [ghToken,             setGhToken]             = useState(() => getToken());
+  const [uploading,           setUploading]           = useState(false);
+  const [uploadProgress,      setUploadProgress]      = useState({ done: 0, total: 0 });
+  const [uploadResult,        setUploadResult]        = useState(null); // 'ok' | 'err'
 
   // Load which keys have recordings in IndexedDB
   useEffect(() => {
@@ -40,7 +45,7 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
     load();
   }, []);
 
-  // After recordings are loaded, check which ones already have a deployed static file
+  // Check which recordings already have a deployed static file on GitHub Pages
   useEffect(() => {
     if (savedCurriculumIds.size === 0) return;
     const base = import.meta.env.BASE_URL ?? '/';
@@ -57,109 +62,101 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
     });
   }, [savedCurriculumIds.size]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function onSaved(cardId) {
-    setSavedIds(prev => new Set([...prev, cardId]));
-  }
-  function onDeleted(cardId) {
-    setSavedIds(prev => { const n = new Set(prev); n.delete(cardId); return n; });
-  }
-  function onCurriculumSaved(key) {
-    setSavedCurriculumIds(prev => new Set([...prev, key]));
-  }
-  function onCurriculumDeleted(key) {
-    setSavedCurriculumIds(prev => { const n = new Set(prev); n.delete(key); return n; });
-  }
+  function onSaved(cardId)          { setSavedIds(prev => new Set([...prev, cardId])); }
+  function onDeleted(cardId)        { setSavedIds(prev => { const n = new Set(prev); n.delete(cardId); return n; }); }
+  function onCurriculumSaved(key)   { setSavedCurriculumIds(prev => new Set([...prev, key])); }
+  function onCurriculumDeleted(key) { setSavedCurriculumIds(prev => { const n = new Set(prev); n.delete(key); return n; }); }
+  function onCurriculumUploaded(key){ setUploadedIds(prev => new Set([...prev, key])); }
+
   function handleWordChanged(key, newExample) {
     saveWordOverride(key, newExample);
     setWordOverrides(prev => ({ ...prev, [key]: newExample }));
     notifyParent?.(key, newExample);
   }
 
-  const [zipping, setZipping] = useState(false);
+  function handleTokenSave(t) {
+    saveToken(t);
+    setGhToken(t);
+    setUploadResult(null);
+  }
+  function handleTokenClear() {
+    clearToken();
+    setGhToken('');
+    setUploadResult(null);
+  }
 
-  // Keys recorded locally but NOT yet deployed as static files
-  const newKeys = [...savedCurriculumIds].filter(k => !deployedIds.has(k));
+  // Keys recorded locally and not yet uploaded this session
   const allKeys = [...savedCurriculumIds];
+  const pendingKeys = allKeys.filter(k => !deployedIds.has(k) && !uploadedIds.has(k));
 
-  async function sendRecordings(keys) {
-    if (!keys.length) return;
-    setZipping(true);
-    try {
-      const zip = new JSZip();
-      for (const key of keys) {
+  async function publishToGitHub(keys) {
+    if (!keys.length || !ghToken) return;
+    setUploading(true);
+    setUploadResult(null);
+    setUploadProgress({ done: 0, total: keys.length });
+    let failed = 0;
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      try {
         const dataUrl = await getRecording(key);
-        if (!dataUrl) continue;
-        const base64 = dataUrl.split(',')[1];
-        zip.file(`${key}.webm`, base64, { base64: true });
+        if (!dataUrl) { failed++; continue; }
+        await uploadRecording(ghToken, key, dataUrl);
+        onCurriculumUploaded(key);
+      } catch (err) {
+        if (err?.message === 'TOKEN_INVALID') {
+          handleTokenClear();
+          setUploadResult('token_err');
+          setUploading(false);
+          return;
+        }
+        failed++;
       }
-      const blob     = await zip.generateAsync({ type: 'blob' });
-      const filename = `libby-recordings-${new Date().toISOString().slice(0, 10)}.zip`;
-      const file     = new File([blob], filename, { type: 'application/zip' });
-
-      // On mobile: open native share sheet (WhatsApp, Mail, etc.)
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({
-          title: 'הקלטות לליבי',
-          text: `${keys.length} הקלטות — שלח לניר לפרסום`,
-          files: [file],
-        });
-      } else {
-        // Desktop fallback: download ZIP
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
-        a.href    = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 3000);
-      }
-    } catch (err) {
-      if (err?.name !== 'AbortError') alert('שגיאה: ' + (err?.message ?? err));
-    } finally {
-      setZipping(false);
+      setUploadProgress({ done: i + 1, total: keys.length });
     }
+    setUploading(false);
+    setUploadResult(failed === 0 ? 'ok' : 'partial');
   }
 
   return (
     <div className="space-y-5" dir="rtl">
 
-      {/* ── How it works explanation ─────────────────────────── */}
+      {/* ── GitHub Token Setup ─────────────────────────────────── */}
+      <TokenSetup token={ghToken} onSave={handleTokenSave} onClear={handleTokenClear} />
+
+      {/* ── How it works ──────────────────────────────────────── */}
       <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4 space-y-3 font-assistant text-sm">
         <p className="font-black text-indigo-700 text-base">📖 איך עובד האולפן?</p>
         <p className="text-indigo-600 text-xs bg-indigo-100 rounded-xl px-3 py-2 font-bold">
-          🔑 כניסה לאולפן: לחץ 5 פעמים ברצף על 👑 (תג הניקוד) במסך המשחק
+          🔑 כניסה לאולפן: לחץ 5 פעמים ברצף על 👑 במסך המשחק
         </p>
-
         <ol className="space-y-2 text-indigo-800 list-none">
           <li className="flex gap-2">
             <span className="font-black text-pink-500 shrink-0">1.</span>
-            <span>לחצי <span className="font-bold">הַקְלֵט 🎙️</span> ליד כל מילה, אמרי את המילה, לחצי <span className="font-bold">עֲצֹר</span>.</span>
+            <span>הכנסי <span className="font-bold">GitHub Token</span> פעם אחת (נשמר אוטומטית).</span>
           </li>
           <li className="flex gap-2">
             <span className="font-black text-pink-500 shrink-0">2.</span>
-            <span>אפשר לעצור בכל שלב — לא חייבים להקליט הכל ביום אחד.</span>
+            <span>לחצי <span className="font-bold">הַקְלֵט 🎙️</span> ליד כל מילה, אמרי את המילה, לחצי <span className="font-bold">עֲצֹר</span>.</span>
           </li>
           <li className="flex gap-2">
             <span className="font-black text-pink-500 shrink-0">3.</span>
-            <span>לחצי <span className="font-bold">הורד חדשות 📤</span> — רק ההקלטות שטרם נשלחו יורדות.</span>
+            <span>לחצי <span className="font-bold">פרסם לכל המכשירים ☁️</span> — ההקלטות יועלו לגיטהאב ישירות.</span>
           </li>
           <li className="flex gap-2">
             <span className="font-black text-pink-500 shrink-0">4.</span>
-            <span>שלחי את קבצי ה-<span className="font-bold">.webm</span> לניר — הוא מוסיף אותם לאפליקציה ודוחף.</span>
+            <span>תוך כ-3 דקות ההקלטות יופיעו אוטומטית <span className="font-bold">על כל מכשיר</span> שפותח את האפליקציה.</span>
           </li>
           <li className="flex gap-2">
             <span className="font-black text-pink-500 shrink-0">5.</span>
-            <span>חזרי בפעם הבאה, הקליטי עוד מילים → הורד חדשות → שלחי שוב. <span className="font-bold">ההקלטות הקודמות לא נדרסות!</span></span>
+            <span>אפשר להמשיך להקליט עוד ולפרסם שוב בכל עת. <span className="font-bold">הקלטות קיימות לא נדרסות!</span></span>
           </li>
         </ol>
-
         <div className="flex flex-wrap gap-3 pt-1 border-t border-indigo-200">
           <span className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full border border-emerald-300">
             <Check size={11} /> פוּרְסָם — כבר באפליקציה על כל מכשיר
           </span>
           <span className="flex items-center gap-1 text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-1 rounded-full border border-indigo-300">
-            <Upload size={11} /> מוּכָן לִשְׁלִיחָה — הוקלט, טרם נשלח
+            <Upload size={11} /> הוּעְלָה — ממתין לבנייה (~3 דק׳)
           </span>
         </div>
       </div>
@@ -172,21 +169,34 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
           </h3>
           {allKeys.length > 0 && (
             <button
-              onClick={() => sendRecordings(allKeys)}
-              disabled={zipping}
+              onClick={() => publishToGitHub(pendingKeys.length ? pendingKeys : allKeys)}
+              disabled={uploading || !ghToken}
               className="flex items-center gap-1.5 px-4 py-2 rounded-full text-white text-sm font-black transition-all active:scale-95 disabled:opacity-60"
               style={{ background: 'linear-gradient(to right, #6366f1, #ec4899)' }}
+              title={!ghToken ? 'הכנסי GitHub Token כדי לפרסם' : ''}
             >
-              {zipping
-                ? <><span className="animate-spin inline-block">⏳</span> מְכִין…</>
-                : <><Upload size={15} /> שְׁתַף לְנִיר ({allKeys.length} 🎙️)</>}
+              {uploading
+                ? <><span className="animate-spin inline-block">⏳</span> מַעְלֶה {uploadProgress.done}/{uploadProgress.total}…</>
+                : <><Upload size={15} /> פרסם לכל המכשירים ({(pendingKeys.length || allKeys.length)} ☁️)</>}
             </button>
           )}
         </div>
-        {newKeys.length > 0 && !zipping && (
-          <p className="text-xs text-indigo-500 font-bold font-assistant mb-2">
-            ⬆️ {newKeys.length} הקלטות חדשות שטרם נשלחו
-          </p>
+
+        {/* Upload result banner */}
+        {uploadResult === 'ok' && (
+          <div className="bg-emerald-50 border border-emerald-300 rounded-xl px-4 py-2 mb-3 text-emerald-700 font-bold text-sm font-assistant flex items-center gap-2">
+            <Check size={16} /> ✓ פורסם! יופיע על כל המכשירים תוך כ-3 דקות.
+          </div>
+        )}
+        {uploadResult === 'partial' && (
+          <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-2 mb-3 text-amber-700 font-bold text-sm font-assistant">
+            ⚠️ חלק מההקלטות לא הועלו. נסי שוב.
+          </div>
+        )}
+        {uploadResult === 'token_err' && (
+          <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-2 mb-3 text-red-700 font-bold text-sm font-assistant">
+            🔑 הטוקן לא תקין — הכנסי טוקן חדש למעלה.
+          </div>
         )}
 
         {checkingDeploy && (
@@ -216,8 +226,11 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
                     nikudName={NIKUD_META[nikudType].name}
                     hasSaved={savedCurriculumIds.has(key)}
                     isDeployed={deployedIds.has(key)}
+                    isUploaded={uploadedIds.has(key)}
+                    ghToken={ghToken}
                     onSaved={onCurriculumSaved}
                     onDeleted={onCurriculumDeleted}
+                    onUploaded={onCurriculumUploaded}
                     onWordChanged={handleWordChanged}
                   />
                 );
@@ -250,22 +263,94 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
   );
 }
 
+// ── GitHub Token Setup card ───────────────────────────────────────────
+function TokenSetup({ token, onSave, onClear }) {
+  const [draft,    setDraft]    = useState('');
+  const [checking, setChecking] = useState(false);
+  const [valid,    setValid]    = useState(null); // null | true | false
+
+  async function verify() {
+    const t = draft.trim();
+    if (!t) return;
+    setChecking(true);
+    setValid(null);
+    const ok = await verifyToken(t);
+    setChecking(false);
+    setValid(ok);
+    if (ok) onSave(t);
+  }
+
+  if (token) {
+    return (
+      <div className="flex items-center justify-between bg-emerald-50 border-2 border-emerald-200 rounded-2xl px-4 py-3">
+        <span className="flex items-center gap-2 text-sm font-bold text-emerald-700 font-assistant">
+          <Check size={16} className="text-emerald-500" />
+          מחובר לגיטהאב — הקלטות יועלו ישירות ✓
+        </span>
+        <button
+          onClick={onClear}
+          className="text-xs text-red-400 hover:text-red-600 font-bold font-assistant px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
+        >
+          נתק
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 space-y-3 font-assistant">
+      <p className="font-black text-amber-700 text-sm">🔑 הגדרת GitHub Token (פעם אחת)</p>
+      <p className="text-xs text-amber-600">
+        צרי <span className="font-bold">Fine-grained Personal Access Token</span> ב-GitHub עם הרשאת
+        <span className="font-bold"> Contents: Read &amp; Write</span> על הריפו הזה, והדביקי כאן.
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="password"
+          value={draft}
+          onChange={e => { setDraft(e.target.value); setValid(null); }}
+          onKeyDown={e => e.key === 'Enter' && verify()}
+          placeholder="github_pat_…"
+          className="flex-1 border-2 border-amber-200 rounded-xl px-3 py-2 text-sm font-mono bg-white focus:outline-none focus:border-amber-400"
+          dir="ltr"
+        />
+        <button
+          onClick={verify}
+          disabled={checking || !draft.trim()}
+          className="px-4 py-2 rounded-xl bg-amber-500 text-white font-black text-sm disabled:opacity-50 active:scale-95 transition-all"
+        >
+          {checking ? '…' : 'אמת'}
+        </button>
+      </div>
+      {valid === false && (
+        <p className="text-xs text-red-600 font-bold">❌ טוקן לא תקין — בדקי שוב</p>
+      )}
+      {valid === true && (
+        <p className="text-xs text-emerald-600 font-bold">✅ מחובר!</p>
+      )}
+    </div>
+  );
+}
+
 // ── Curriculum tile recorder row ──────────────────────────────────────
-function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, options = [], nikudName, hasSaved, isDeployed, onSaved, onDeleted, onWordChanged }) {
-  const [status, setStatus]       = useState(hasSaved ? 'saved' : 'idle');
-  const [playError, setPlayError] = useState('');
-  const [picking, setPicking]     = useState(false);
-  const recorderRef               = useRef(null);
-  const chunksRef                 = useRef([]);
-  const playbackRef               = useRef(null);
-  const blobUrlRef                = useRef(null);
-  const key                       = `${lessonId}-${nikudType}`;
+function CurriculumCardRow({
+  lessonId, nikudType, display, exampleWord, options = [], nikudName,
+  hasSaved, isDeployed, isUploaded, ghToken,
+  onSaved, onDeleted, onUploaded, onWordChanged,
+}) {
+  const [status,      setStatus]      = useState(hasSaved ? 'saved' : 'idle');
+  const [playError,   setPlayError]   = useState('');
+  const [picking,     setPicking]     = useState(false);
+  const [rowUploading, setRowUploading] = useState(false);
+  const recorderRef  = useRef(null);
+  const chunksRef    = useRef([]);
+  const playbackRef  = useRef(null);
+  const blobUrlRef   = useRef(null);
+  const key          = `${lessonId}-${nikudType}`;
 
-  useEffect(() => {
-    setStatus(hasSaved ? 'saved' : 'idle');
-  }, [hasSaved]);
+  useEffect(() => { setStatus(hasSaved ? 'saved' : 'idle'); }, [hasSaved]);
 
-  // Pre-load Blob URL as soon as status becomes 'saved' so playBack() is synchronous
+  // Pre-load Blob URL when status becomes 'saved' so playBack() is synchronous
   useEffect(() => {
     if (status !== 'saved') {
       if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
@@ -282,12 +367,12 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, options 
         if (cancelled) return;
         createdUrl = URL.createObjectURL(blob);
         blobUrlRef.current = createdUrl;
-      } catch { /* keep blobUrlRef null — playBack will show error */ }
+      } catch { /* keep null — playBack will show error */ }
     })();
     return () => {
       cancelled = true;
       if (playbackRef.current) { playbackRef.current.pause(); playbackRef.current = null; }
-      if (createdUrl) { URL.revokeObjectURL(createdUrl); }
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
       blobUrlRef.current = null;
     };
   }, [status, key]);
@@ -298,19 +383,15 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, options 
     try {
       const stream   = await navigator.mediaDevices.getUserMedia({ audio: true });
       chunksRef.current = [];
-      // Let the browser choose its native mimeType (Chrome uses video/webm;codecs=opus).
-      // Forcing 'audio/webm' causes a mismatch that silently breaks playback.
       const recorder = new MediaRecorder(stream);
       recorderRef.current = recorder;
       recorder.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data); };
       recorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        // Use the recorder's actual mimeType, not a hardcoded one
         const blob   = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
         const reader = new FileReader();
         reader.onloadend = async () => {
           await saveRecording(key, reader.result);
-          // Only mark saved AFTER IndexedDB write — otherwise Play fires before data is stored
           setStatus('saved');
           onSaved(key);
         };
@@ -327,11 +408,9 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, options 
   function stopRecording() {
     recorderRef.current?.stop();
     recorderRef.current = null;
-    setStatus('saving'); // wait for onstop → IndexedDB before showing Play
+    setStatus('saving');
   }
 
-  // Fully synchronous — no awaits before audio.play()
-  // Blob URL is pre-loaded by useEffect when status becomes 'saved'
   function playBack() {
     setPlayError('');
     const url = blobUrlRef.current;
@@ -350,35 +429,32 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, options 
     onDeleted(key);
   }
 
-  async function handleDownload() {
-    const data = await getRecording(key);
-    if (!data) return;
-    const base64  = data.split(',')[1];
-    const bytes   = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-    const blob    = new Blob([bytes], { type: 'audio/webm' });
-    const fname   = `${key}.webm`;
-    const file    = new File([blob], fname, { type: 'audio/webm' });
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file] }).catch(e => { if (e?.name !== 'AbortError') throw e; });
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a   = document.createElement('a');
-      a.href    = url;
-      a.download = fname;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 3000);
+  async function handleUpload() {
+    if (!ghToken || rowUploading) return;
+    setRowUploading(true);
+    try {
+      const dataUrl = await getRecording(key);
+      if (!dataUrl) return;
+      await uploadRecording(ghToken, key, dataUrl);
+      onUploaded(key);
+    } catch (err) {
+      alert('שגיאה בהעלאה: ' + (err?.message ?? err));
+    } finally {
+      setRowUploading(false);
     }
   }
+
+  const isPublished = isDeployed || isUploaded;
 
   return (
     <div className={`flex items-center gap-3 p-2 rounded-2xl border transition-colors
       ${isDeployed
         ? 'bg-emerald-50/60 border-emerald-200'
-        : status === 'saved'
-          ? 'bg-indigo-50/60 border-indigo-200'
-          : 'bg-white/70 border-purple-100 hover:border-purple-300'
+        : isUploaded
+          ? 'bg-teal-50/60 border-teal-200'
+          : status === 'saved'
+            ? 'bg-indigo-50/60 border-indigo-200'
+            : 'bg-white/70 border-purple-100 hover:border-purple-300'
       }`}>
       <div
         className="w-16 text-center font-black font-rubik text-purple-800 leading-none shrink-0"
@@ -431,9 +507,14 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, options 
           <Check size={11} /> פוּרְסָם
         </span>
       )}
-      {!isDeployed && status === 'saved' && (
+      {!isDeployed && isUploaded && (
+        <span className="flex items-center gap-1 text-xs font-bold text-teal-700 bg-teal-100 px-2 py-1 rounded-full border border-teal-300 shrink-0">
+          ☁️ הוּעְלָה
+        </span>
+      )}
+      {!isPublished && status === 'saved' && (
         <span className="flex items-center gap-1 text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-1 rounded-full border border-indigo-300 shrink-0">
-          <Upload size={11} /> לִשְׁלִיחָה
+          <Upload size={11} /> מוּכָן
         </span>
       )}
 
@@ -462,9 +543,22 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, options 
         )}
         {status === 'saved' && (
           <>
-            <button onClick={playBack}       className="p-1.5 rounded-full bg-blue-100   text-blue-600   hover:bg-blue-200   transition-colors" title="נגן"><Play     size={14} /></button>
-            <button onClick={handleDownload} className="p-1.5 rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors" title="הורד"><Download size={14} /></button>
-            <button onClick={handleDelete}   className="p-1.5 rounded-full bg-red-100    text-red-500    hover:bg-red-200    transition-colors" title="מחק"><Trash2   size={14} /></button>
+            <button onClick={playBack} className="p-1.5 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors" title="נגן">
+              <Play size={14} />
+            </button>
+            {ghToken && !isPublished && (
+              <button
+                onClick={handleUpload}
+                disabled={rowUploading}
+                className="p-1.5 rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors disabled:opacity-50"
+                title="העלי לגיטהאב"
+              >
+                {rowUploading ? <span className="text-xs animate-spin inline-block">⏳</span> : <Upload size={14} />}
+              </button>
+            )}
+            <button onClick={handleDelete} className="p-1.5 rounded-full bg-red-100 text-red-500 hover:bg-red-200 transition-colors" title="מחק">
+              <Trash2 size={14} />
+            </button>
             {playError && <span className="text-xs text-red-500 font-assistant">{playError}</span>}
           </>
         )}
@@ -479,9 +573,7 @@ function CardRow({ card, hasSaved, onSaved, onDeleted }) {
   const recorderRef         = useRef(null);
   const chunksRef           = useRef([]);
 
-  useEffect(() => {
-    setStatus(hasSaved ? 'saved' : 'idle');
-  }, [hasSaved]);
+  useEffect(() => { setStatus(hasSaved ? 'saved' : 'idle'); }, [hasSaved]);
 
   async function startRecording() {
     setStatus('requesting');
