@@ -23,6 +23,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Overlay audio files from main
+        run: |
+          git fetch origin main
+          git checkout origin/main -- public/audio/ 2>/dev/null || true
 
       - name: Setup Node
         uses: actions/setup-node@v4
