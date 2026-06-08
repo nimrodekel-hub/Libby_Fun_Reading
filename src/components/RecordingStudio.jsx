@@ -45,13 +45,15 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
     load();
   }, []);
 
-  // Check which recordings already have a deployed static file on GitHub Pages
+  // Check ALL curriculum keys against GitHub Pages (catches recordings from other devices)
   useEffect(() => {
-    if (savedCurriculumIds.size === 0) return;
     const base = import.meta.env.BASE_URL ?? '/';
+    const allKeys = LETTER_LESSONS.flatMap(lesson =>
+      NIKUD_ORDER.map(nikudType => `${lesson.id}-${nikudType}`)
+    );
     setCheckingDeploy(true);
     Promise.all(
-      [...savedCurriculumIds].map(key =>
+      allKeys.map(key =>
         fetch(`${base}audio/${key}.webm`, { method: 'HEAD' })
           .then(res => res.ok ? key : null)
           .catch(() => null)
@@ -60,7 +62,7 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
       setDeployedIds(new Set(results.filter(Boolean)));
       setCheckingDeploy(false);
     });
-  }, [savedCurriculumIds.size]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // run once on mount — covers all devices
 
   function onSaved(cardId)          { setSavedIds(prev => new Set([...prev, cardId])); }
   function onDeleted(cardId)        { setSavedIds(prev => { const n = new Set(prev); n.delete(cardId); return n; }); }
@@ -333,6 +335,8 @@ function TokenSetup({ token, onSave, onClear }) {
 }
 
 // ── Curriculum tile recorder row ──────────────────────────────────────
+const BASE_URL = import.meta.env.BASE_URL ?? '/';
+
 function CurriculumCardRow({
   lessonId, nikudType, display, exampleWord, options = [], nikudName,
   hasSaved, isDeployed, isUploaded, ghToken,
@@ -421,6 +425,13 @@ function CurriculumCardRow({
     audio.onended = () => { playbackRef.current = null; };
     audio.onerror = () => { playbackRef.current = null; setPlayError(`שגיאה ${audio.error?.code ?? '?'}`); };
     audio.play().catch(err => { playbackRef.current = null; setPlayError(err.name); });
+  }
+
+  function playDeployed() {
+    setPlayError('');
+    const audio = new Audio(`${BASE_URL}audio/${key}.webm`);
+    audio.onerror = () => setPlayError('שגיאה בנגינה');
+    audio.play().catch(() => setPlayError('שגיאה בנגינה'));
   }
 
   async function handleDelete() {
@@ -519,12 +530,17 @@ function CurriculumCardRow({
       )}
 
       <div className="flex items-center gap-2 shrink-0">
+        {status === 'idle' && isDeployed && (
+          <button onClick={playDeployed} className="p-1.5 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors" title="נגן מהשרת">
+            <Play size={14} />
+          </button>
+        )}
         {status === 'idle' && (
           <button
             onClick={startRecording}
             className="flex items-center gap-1 px-3 py-1.5 bg-pink-500 text-white text-xs font-bold rounded-full hover:bg-pink-600 transition-colors"
           >
-            <Mic size={14} /> הַקְלֵט
+            <Mic size={14} /> {isDeployed ? 'הַקְלֵט שוב' : 'הַקְלֵט'}
           </button>
         )}
         {status === 'requesting' && (
