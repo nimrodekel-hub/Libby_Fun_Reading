@@ -81,7 +81,7 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
   const newKeys = [...savedCurriculumIds].filter(k => !deployedIds.has(k));
   const allKeys = [...savedCurriculumIds];
 
-  async function downloadZip(keys, filename) {
+  async function sendRecordings(keys) {
     if (!keys.length) return;
     setZipping(true);
     try {
@@ -89,19 +89,33 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
       for (const key of keys) {
         const dataUrl = await getRecording(key);
         if (!dataUrl) continue;
-        // dataUrl = "data:audio/webm;base64,AAA..."
         const base64 = dataUrl.split(',')[1];
         zip.file(`${key}.webm`, base64, { base64: true });
       }
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 3000);
+      const blob     = await zip.generateAsync({ type: 'blob' });
+      const filename = `libby-recordings-${new Date().toISOString().slice(0, 10)}.zip`;
+      const file     = new File([blob], filename, { type: 'application/zip' });
+
+      // On mobile: open native share sheet (WhatsApp, Mail, etc.)
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: 'הקלטות לליבי',
+          text: `${keys.length} הקלטות — שלח לניר לפרסום`,
+          files: [file],
+        });
+      } else {
+        // Desktop fallback: download ZIP
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href    = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+      }
+    } catch (err) {
+      if (err?.name !== 'AbortError') alert('שגיאה: ' + (err?.message ?? err));
     } finally {
       setZipping(false);
     }
@@ -158,14 +172,14 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
           </h3>
           {allKeys.length > 0 && (
             <button
-              onClick={() => downloadZip(allKeys, `libby-recordings-${new Date().toISOString().slice(0,10)}.zip`)}
+              onClick={() => sendRecordings(allKeys)}
               disabled={zipping}
               className="flex items-center gap-1.5 px-4 py-2 rounded-full text-white text-sm font-black transition-all active:scale-95 disabled:opacity-60"
               style={{ background: 'linear-gradient(to right, #6366f1, #ec4899)' }}
             >
               {zipping
-                ? <><span className="animate-spin">⏳</span> מְכִין ZIP…</>
-                : <><Download size={15} /> שְׁלַח לְנִיר ({allKeys.length} 🎙️)</>}
+                ? <><span className="animate-spin inline-block">⏳</span> מְכִין…</>
+                : <><Upload size={15} /> שְׁתַף לְנִיר ({allKeys.length} 🎙️)</>}
             </button>
           )}
         </div>
@@ -339,12 +353,23 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, options 
   async function handleDownload() {
     const data = await getRecording(key);
     if (!data) return;
-    const a = document.createElement('a');
-    a.href = data;
-    a.download = `${key}.webm`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const base64  = data.split(',')[1];
+    const bytes   = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    const blob    = new Blob([bytes], { type: 'audio/webm' });
+    const fname   = `${key}.webm`;
+    const file    = new File([blob], fname, { type: 'audio/webm' });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file] }).catch(e => { if (e?.name !== 'AbortError') throw e; });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href    = url;
+      a.download = fname;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+    }
   }
 
   return (
