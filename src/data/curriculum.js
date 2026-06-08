@@ -107,6 +107,66 @@ export const LETTER_LESSONS = [
       KUBUTZ: { display: 'שֻׁ', phonetic: 'שֻׁ', example: 'שֻׁלְחָן 🍽️', alts: ['שֻׁתָּף 🤝', 'שֻׁנָּה 🔄'] },
     },
   },
+  {
+    id: 'alef', base: 'א', name: 'אָלֶף', emoji: '🦁',
+    nikud: {
+      KAMATZ: { display: 'אָ', phonetic: 'אָ', example: 'אָב 👨',       alts: ['אָחוֹת 👧', 'אָדֹם 🔴', 'אָרוֹן 🚪'] },
+      PATACH: { display: 'אַ', phonetic: 'אַ', example: 'אַרְנָב 🐰',   alts: ['אַבָּא 👨', 'אַגַּם 🏞️', 'אַרְיֵה 🦁'] },
+      SEGOL:  { display: 'אֶ', phonetic: 'אֶ', example: 'אֶצְבַּע 👆',  alts: ['אֶחָד 1️⃣', 'אֶרֶץ 🌍', 'אֶמֶשׁ 🌙'] },
+      TZERE:  { display: 'אֵ', phonetic: 'אֵ', example: 'אֵם 👩',       alts: ['אֵשׁ 🔥', 'אֵלָה 🌳', 'אֵיל 🦌'] },
+      HIRIK:  { display: 'אִ', phonetic: 'אִ', example: 'אִישׁ 🧔',     alts: ['אִמָּא 👩', 'אִיָּה 🦅', 'אִיִּי 🏝️'] },
+      HOLAM:  { display: 'אֹ', phonetic: 'אֹ', example: 'אֹכֶל 🍽️',   alts: ['אוֹטוֹ 🚗', 'אוֹפַנַּיִם 🚲', 'אוֹצָר 💎'] },
+      KUBUTZ: { display: 'אֻ', phonetic: 'אֻ', example: 'אֻמָּה 🌍',   alts: ['אֻמְנָם 🤔'] },
+    },
+  },
+  {
+    id: 'tav', base: 'ת', name: 'תָּו', emoji: '🍎',
+    nikud: {
+      KAMATZ: { display: 'תָּ', phonetic: 'תָּ', example: 'תָּנִין 🐊',    alts: ['תָּפוּחַ 🍎', 'תָּמָר 🌴', 'תָּרְנְגוֹל 🐓'] },
+      PATACH: { display: 'תַּ', phonetic: 'תַּ', example: 'תַּפּוּחַ 🍎',  alts: ['תַּרְנְגוֹל 🐓', 'תַּנּוּר 🔥', 'תַּלְמִיד 📚'] },
+      SEGOL:  { display: 'תֶּ', phonetic: 'תֶּ', example: 'תֶּבֶן 🌾',     alts: ['תֶּלֶם 🌾', 'תֶּכֶף ⚡'] },
+      TZERE:  { display: 'תֵּ', phonetic: 'תֵּ', example: 'תֵּה 🍵',       alts: ['תֵּבָה 📦', 'תֵּל ⛰️', 'תֵּבֵל 🌍'] },
+      HIRIK:  { display: 'תִּ', phonetic: 'תִּ', example: 'תִּינוֹק 👶',  alts: ['תִּירָס 🌽', 'תִּיק 🎒', 'תִּרְמוֹס 🧃'] },
+      HOLAM:  { display: 'תֹּ', phonetic: 'תֹּ', example: 'תּוֹף 🥁',    alts: ['תּוֹלַעַת 🐛', 'תּוֹר 🕊️', 'תּוֹכִי 🦜'] },
+      KUBUTZ: { display: 'תֻּ', phonetic: 'תֻּ', example: 'תֻּמָּה 💛',   alts: [] },
+    },
+  },
+  {
+    id: 'resh', base: 'ר', name: 'רֵישׁ', emoji: '🚆',
+    nikud: {
+      KAMATZ: { display: 'רָ', phonetic: 'רָ', example: 'רָץ 🏃',        alts: ['רָחֵל 🐑', 'רָקִיעַ ☁️', 'רָגֶל 🦵'] },
+      PATACH: { display: 'רַ', phonetic: 'רַ', example: 'רַכֶּבֶת 🚆',  alts: ['רַגְלַיִם 🦵', 'רַעַשׁ 📢', 'רַעֲנָן 🌿'] },
+      SEGOL:  { display: 'רֶ', phonetic: 'רֶ', example: 'רֶכֶב 🚗',     alts: ['רֶגֶל 🦵', 'רֶגַע ⏱️', 'רֶשֶׁת 🕸️'] },
+      TZERE:  { display: 'רֵ', phonetic: 'רֵ', example: 'רֵיחַ 👃',     alts: ['רֵאָה 🫁', 'רֵעַ 👫'] },
+      HIRIK:  { display: 'רִ', phonetic: 'רִ', example: 'רִיקוּד 💃',   alts: ['רִמּוֹן 🫐', 'רִינָה 👧', 'רִיצָה 🏃'] },
+      HOLAM:  { display: 'רֹ', phonetic: 'רֹ', example: 'רוֹבוֹט 🤖',  alts: ['רוֹקֵד 💃', 'רוֹכֵב 🚲', 'רוֹחֵץ 🚿'] },
+      KUBUTZ: { display: 'רֻ', phonetic: 'רֻ', example: 'רֻמָּח 🗡️',    alts: [] },
+    },
+  },
+  {
+    id: 'pe', base: 'פּ', name: 'פֵּא', emoji: '🦋',
+    nikud: {
+      KAMATZ: { display: 'פָּ', phonetic: 'פָּ', example: 'פָּרָה 🐄',      alts: ['פָּנִים 😊', 'פָּרָשׁ 🐎', 'פָּרָשָׁה 📜'] },
+      PATACH: { display: 'פַּ', phonetic: 'פַּ', example: 'פַּרְפַּר 🦋',  alts: ['פַּח 🗑️', 'פַּרְדֵּס 🍊', 'פַּנָּס 🏮'] },
+      SEGOL:  { display: 'פֶּ', phonetic: 'פֶּ', example: 'פֶּרַח 🌸',     alts: ['פֶּה 👄', 'פֶּקַק 🚗', 'פֶּלֶא 🪄'] },
+      TZERE:  { display: 'פֵּ', phonetic: 'פֵּ', example: 'פֵּרוֹת 🍓',   alts: ['פֵּאָה 💇', 'פֵּה 👄'] },
+      HIRIK:  { display: 'פִּ', phonetic: 'פִּ', example: 'פִּיל 🐘',      alts: ['פִּיצָה 🍕', 'פִּינָּה 🏠', 'פִּטְרִיָּה 🍄'] },
+      HOLAM:  { display: 'פֹּ', phonetic: 'פֹּ', example: 'פּוֹנִי 🐎',   alts: ['פּוֹרִים 🎭', 'פּוֹעֵל 👷'] },
+      KUBUTZ: { display: 'פֻּ', phonetic: 'פֻּ', example: 'פֻּנְדָּק 🏨',  alts: [] },
+    },
+  },
+  {
+    id: 'gimel', base: 'ג', name: 'גִּימֶל', emoji: '🦒',
+    nikud: {
+      KAMATZ: { display: 'גָּ', phonetic: 'גָּ', example: 'גָּמָל 🐪',    alts: ['גָּן 🌻', 'גָּשֶׁם 🌧️', 'גָּבִישׁ 💎'] },
+      PATACH: { display: 'גַּ', phonetic: 'גַּ', example: 'גַּן 🌻',      alts: ['גַּלְגַּל 🎡', 'גַּב 🫃', 'גַּרְזֶן 🪓'] },
+      SEGOL:  { display: 'גֶּ', phonetic: 'גֶּ', example: 'גֶּשֶׁם 🌧️',  alts: ['גֶּזֶר 🥕', 'גֶּפֶן 🍇', 'גֶּלֶד 🧊'] },
+      TZERE:  { display: 'גֵּ', phonetic: 'גֵּ', example: 'גֵּרָה 🐄',    alts: [] },
+      HIRIK:  { display: 'גִּ', phonetic: 'גִּ', example: 'גִּירָה 🖍️',  alts: ['גִּיבּוֹר 🦸', 'גִּינָה 🌻', 'גִּיגִית 🛁'] },
+      HOLAM:  { display: 'גֹּ', phonetic: 'גֹּ', example: 'גּוֹרִיל 🦍',  alts: ['גּוֹלֵם 🗿', 'גּוֹלָן ⛰️'] },
+      KUBUTZ: { display: 'גֻּ', phonetic: 'גֻּ', example: 'גֻּלָּה 🪀',   alts: ['גֻּלְגֹּלֶת 💀'] },
+    },
+  },
 ];
 
 /**
