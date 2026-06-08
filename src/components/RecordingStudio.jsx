@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import JSZip from 'jszip';
 import { Mic, Square, Play, Trash2, Check, Download, Upload, Pencil } from 'lucide-react';
 import { saveRecording, getRecording, deleteRecording } from '../utils/audioStorage';
 import { loadAllWordOverrides, saveWordOverride } from '../utils/wordOverrides';
@@ -74,19 +75,35 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
     notifyParent?.(key, newExample);
   }
 
+  const [zipping, setZipping] = useState(false);
+
   // Keys recorded locally but NOT yet deployed as static files
   const newKeys = [...savedCurriculumIds].filter(k => !deployedIds.has(k));
+  const allKeys = [...savedCurriculumIds];
 
-  async function downloadKeys(keys) {
-    for (let i = 0; i < keys.length; i++) {
-      const data = await getRecording(keys[i]);
-      if (data) {
-        const a = document.createElement('a');
-        a.href = data;
-        a.download = `${keys[i]}.webm`;
-        a.click();
+  async function downloadZip(keys, filename) {
+    if (!keys.length) return;
+    setZipping(true);
+    try {
+      const zip = new JSZip();
+      for (const key of keys) {
+        const dataUrl = await getRecording(key);
+        if (!dataUrl) continue;
+        // dataUrl = "data:audio/webm;base64,AAA..."
+        const base64 = dataUrl.split(',')[1];
+        zip.file(`${key}.webm`, base64, { base64: true });
       }
-      if (i < keys.length - 1) await new Promise(r => setTimeout(r, 250));
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+    } finally {
+      setZipping(false);
     }
   }
 
@@ -137,29 +154,26 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
       <section>
         <div className="flex items-center justify-between border-b border-purple-100 pb-2 mb-3 gap-2 flex-wrap">
           <h3 className="text-base font-black text-purple-700 font-rubik">
-            נִיקּוּד מָלֵא — 56 מִילִּים
+            נִיקּוּד מָלֵא — {LETTER_LESSONS.length * NIKUD_ORDER.length} מִילִּים
           </h3>
-          <div className="flex gap-2">
-            {/* Download NEW only */}
-            {newKeys.length > 0 && (
-              <button
-                onClick={() => downloadKeys(newKeys)}
-                className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 text-white text-xs font-bold rounded-full hover:bg-indigo-600 transition-colors"
-              >
-                <Upload size={14} /> הוֹרֵד חֲדָשׁוֹת ({newKeys.length})
-              </button>
-            )}
-            {/* Download ALL */}
-            {savedCurriculumIds.size > 0 && (
-              <button
-                onClick={() => downloadKeys([...savedCurriculumIds])}
-                className="flex items-center gap-1 px-3 py-1.5 bg-purple-400 text-white text-xs font-bold rounded-full hover:bg-purple-500 transition-colors"
-              >
-                <Download size={14} /> הוֹרֵד הַכֹּל ({savedCurriculumIds.size})
-              </button>
-            )}
-          </div>
+          {allKeys.length > 0 && (
+            <button
+              onClick={() => downloadZip(allKeys, `libby-recordings-${new Date().toISOString().slice(0,10)}.zip`)}
+              disabled={zipping}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-white text-sm font-black transition-all active:scale-95 disabled:opacity-60"
+              style={{ background: 'linear-gradient(to right, #6366f1, #ec4899)' }}
+            >
+              {zipping
+                ? <><span className="animate-spin">⏳</span> מְכִין ZIP…</>
+                : <><Download size={15} /> שְׁלַח לְנִיר ({allKeys.length} 🎙️)</>}
+            </button>
+          )}
         </div>
+        {newKeys.length > 0 && !zipping && (
+          <p className="text-xs text-indigo-500 font-bold font-assistant mb-2">
+            ⬆️ {newKeys.length} הקלטות חדשות שטרם נשלחו
+          </p>
+        )}
 
         {checkingDeploy && (
           <p className="text-xs text-purple-300 font-assistant mb-2 animate-pulse">בודק אילו קבצים כבר פורסו…</p>
@@ -328,7 +342,9 @@ function CurriculumCardRow({ lessonId, nikudType, display, exampleWord, options 
     const a = document.createElement('a');
     a.href = data;
     a.download = `${key}.webm`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
   }
 
   return (
