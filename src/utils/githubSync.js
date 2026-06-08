@@ -51,16 +51,24 @@ export async function uploadRecording(token, key, dataUrl) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     if (res.status === 401) throw new Error('TOKEN_INVALID');
+    if (res.status === 403) throw new Error('TOKEN_NO_WRITE');
     throw new Error(err.message ?? `HTTP ${res.status}`);
   }
   return true;
 }
 
-/** Quick connectivity check — returns true if the token is valid. */
+/** Connectivity + write-permission check.
+ *  Returns 'ok' | 'no_write' | 'invalid' | 'network_error'
+ */
 export async function verifyToken(token) {
   const res = await fetch(
     `https://api.github.com/repos/${OWNER}/${REPO}`,
     { headers: headers(token) }
   ).catch(() => null);
-  return res?.ok ?? false;
+  if (!res)       return 'network_error';
+  if (!res.ok)    return 'invalid';
+  const data = await res.json().catch(() => ({}));
+  // Fine-grained PATs expose permissions in the response
+  if (data.permissions && !data.permissions.push) return 'no_write';
+  return 'ok';
 }

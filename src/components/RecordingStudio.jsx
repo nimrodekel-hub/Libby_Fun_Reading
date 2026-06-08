@@ -105,9 +105,9 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
         await uploadRecording(ghToken, key, dataUrl);
         onCurriculumUploaded(key);
       } catch (err) {
-        if (err?.message === 'TOKEN_INVALID') {
-          handleTokenClear();
-          setUploadResult('token_err');
+        if (err?.message === 'TOKEN_INVALID' || err?.message === 'TOKEN_NO_WRITE') {
+          if (err.message === 'TOKEN_NO_WRITE') setUploadResult('no_write');
+          else { handleTokenClear(); setUploadResult('token_err'); }
           setUploading(false);
           return;
         }
@@ -200,6 +200,12 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
             🔑 הטוקן לא תקין — הכנסי טוקן חדש למעלה.
           </div>
         )}
+        {uploadResult === 'no_write' && (
+          <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-2 mb-3 text-red-700 font-bold text-sm font-assistant space-y-1">
+            <p>🔒 לטוקן אין הרשאת כתיבה.</p>
+            <p className="font-normal text-xs">צרי טוקן חדש ב-GitHub עם <span className="font-bold">Contents: Read and write</span>, הכניסי אותו למעלה ונסי שוב.</p>
+          </div>
+        )}
 
         {checkingDeploy && (
           <p className="text-xs text-purple-300 font-assistant mb-2 animate-pulse">בודק אילו קבצים כבר פורסו…</p>
@@ -276,10 +282,10 @@ function TokenSetup({ token, onSave, onClear }) {
     if (!t) return;
     setChecking(true);
     setValid(null);
-    const ok = await verifyToken(t);
+    const result = await verifyToken(t);
     setChecking(false);
-    setValid(ok);
-    if (ok) onSave(t);
+    setValid(result);
+    if (result === 'ok') onSave(t);
   }
 
   if (token) {
@@ -324,11 +330,17 @@ function TokenSetup({ token, onSave, onClear }) {
           {checking ? '…' : 'אמת'}
         </button>
       </div>
-      {valid === false && (
+      {valid === 'invalid' && (
         <p className="text-xs text-red-600 font-bold">❌ טוקן לא תקין — בדקי שוב</p>
       )}
-      {valid === true && (
-        <p className="text-xs text-emerald-600 font-bold">✅ מחובר!</p>
+      {valid === 'no_write' && (
+        <p className="text-xs text-red-600 font-bold">🔒 חסרה הרשאת כתיבה — צרי טוקן עם Contents: Read and write</p>
+      )}
+      {valid === 'network_error' && (
+        <p className="text-xs text-amber-600 font-bold">⚠️ בעיית רשת — נסי שוב</p>
+      )}
+      {valid === 'ok' && (
+        <p className="text-xs text-emerald-600 font-bold">✅ מחובר עם הרשאת כתיבה!</p>
       )}
     </div>
   );
