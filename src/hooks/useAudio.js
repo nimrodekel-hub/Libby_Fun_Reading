@@ -1,5 +1,6 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { getRecording } from '../utils/audioStorage';
+import { AUDIO_EXTS } from '../utils/githubSync';
 
 // Load voices immediately and on change (voices load async in browsers)
 function initVoices() {
@@ -80,16 +81,20 @@ export function useAudio() {
   }, [stopAll]);
 
   // Playback for curriculum tiles.
-  // TTS fires synchronously first (iOS Safari user-gesture requirement).
-  // In parallel we look for a better source and swap in if found:
-  //   1. Static file deployed to /audio/ (cross-device, committed to repo)
-  //   2. IndexedDB parent recording (same-device only)
+  //
+  // Strategy:
+  //   1. Fire TTS immediately (synchronous — preserves iOS Safari gesture context).
+  //   2. In the background, search for a static audio file (.wav first, then .webm).
+  //   3. Try IndexedDB as last resort before keeping TTS.
+  //   4. Only cancel TTS once we confirm the audio ACTUALLY starts playing
+  //      (audio.play() resolves). If it fails (unsupported format, network), TTS
+  //      continues — no silent failure.
   const playLessonTile = useCallback((lessonId, nikudType, fallbackText) => {
     if (!lessonId || !nikudType) return;
     stopAll();
     isPlayingRef.current = true;
 
-    // Fire TTS immediately — synchronous call preserves the iOS Safari gesture context.
+    // 1 — Fire TTS immediately (must be synchronous for iOS gesture context)
     if (fallbackText && 'speechSynthesis' in window) {
       const u = buildUtterance(fallbackText, () => { isPlayingRef.current = false; });
       window.speechSynthesis.speak(u);
@@ -97,30 +102,44 @@ export function useAudio() {
       isPlayingRef.current = false;
     }
 
-    // Helper: cancel TTS and play an audio src instead.
-    function upgradeToAudio(src) {
-      window.speechSynthesis?.cancel();
-      isPlayingRef.current = true;
+    const base = import.meta.env.BASE_URL ?? '/';
+    const key  = `${lessonId}-${nikudType}`;
+
+    // Attempt to play an audio src. Cancels TTS only if playback actually starts.
+    function tryAudio(src) {
       const audio = new Audio(src);
       audioRef.current = audio;
       audio.onended = () => { isPlayingRef.current = false; };
-      audio.onerror  = () => { isPlayingRef.current = false; };
-      audio.play().catch(() => { isPlayingRef.current = false; });
+      audio.onerror = () => { isPlayingRef.current = false; }; // TTS stays if format unsupported
+      audio.play()
+        .then(() => {
+          // Playback started — silence TTS now
+          window.speechSynthesis?.cancel();
+          isPlayingRef.current = true;
+        })
+        .catch(() => {
+          // Can't play (unsupported format or gesture context lost) — TTS continues
+          isPlayingRef.current = false;
+        });
     }
 
-    // Background upgrade: static file → IndexedDB → keep TTS.
-    const base       = import.meta.env.BASE_URL ?? '/';
-    const staticPath = `${base}audio/${lessonId}-${nikudType}.webm`;
-    const dbKey      = `${lessonId}-${nikudType}`;
+    // 2 — Background: try static files (.wav first for iOS compat, .webm fallback)
+    async function upgradeFromStatic() {
+      for (const ext of AUDIO_EXTS) {
+        const src = `${base}audio/${key}${ext}`;
+        try {
+          const res = await fetch(src, { method: 'HEAD' });
+          if (res.ok) { tryAudio(src); return; }
+        } catch { /* try next */ }
+      }
+      // 3 — Last resort: IndexedDB (same device only)
+      try {
+        const stored = await getRecording(key);
+        if (stored) tryAudio(stored);
+      } catch { /* keep TTS */ }
+    }
 
-    fetch(staticPath, { method: 'HEAD' })
-      .then(res => {
-        if (res.ok) { upgradeToAudio(staticPath); return; }
-        return getRecording(dbKey).then(stored => { if (stored) upgradeToAudio(stored); });
-      })
-      .catch(() =>
-        getRecording(dbKey).then(stored => { if (stored) upgradeToAudio(stored); }).catch(() => {})
-      );
+    upgradeFromStatic();
   }, [stopAll]);
 
   return { playCardAudio, playText, playLessonTile, stopAll };

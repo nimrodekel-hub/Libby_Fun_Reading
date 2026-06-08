@@ -5,7 +5,7 @@ import { loadAllWordOverrides, saveWordOverride } from '../utils/wordOverrides';
 import { LETTER_CARDS } from '../data/letters';
 import { WORD_CARDS }   from '../data/words';
 import { LETTER_LESSONS, NIKUD_META, NIKUD_ORDER } from '../data/curriculum';
-import { getToken, saveToken, clearToken, uploadRecording, triggerDeploy, verifyToken } from '../utils/githubSync';
+import { getToken, saveToken, clearToken, uploadRecording, triggerDeploy, verifyToken, AUDIO_EXTS } from '../utils/githubSync';
 
 const ALL_CARDS = [
   { group: 'שַׁלַב 1 — אוֹתִיּוֹת', cards: LETTER_CARDS },
@@ -45,7 +45,8 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
     load();
   }, []);
 
-  // Check ALL curriculum keys against GitHub Pages (catches recordings from other devices)
+  // Check ALL curriculum keys against GitHub Pages (covers recordings from any device).
+  // Tries .wav first (new universal format), then .webm (old format) for each key.
   useEffect(() => {
     const base = import.meta.env.BASE_URL ?? '/';
     const allKeys = LETTER_LESSONS.flatMap(lesson =>
@@ -54,15 +55,20 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
     setCheckingDeploy(true);
     Promise.all(
       allKeys.map(key =>
-        fetch(`${base}audio/${key}.webm`, { method: 'HEAD' })
-          .then(res => res.ok ? key : null)
-          .catch(() => null)
+        AUDIO_EXTS.reduce(
+          (chain, ext) => chain.then(found =>
+            found ?? fetch(`${base}audio/${key}${ext}`, { method: 'HEAD' })
+              .then(r => r.ok ? key : null)
+              .catch(() => null)
+          ),
+          Promise.resolve(null)
+        )
       )
     ).then(results => {
       setDeployedIds(new Set(results.filter(Boolean)));
       setCheckingDeploy(false);
     });
-  }, []); // run once on mount — covers all devices
+  }, []); // run once on mount
 
   function onSaved(cardId)          { setSavedIds(prev => new Set([...prev, cardId])); }
   function onDeleted(cardId)        { setSavedIds(prev => { const n = new Set(prev); n.delete(cardId); return n; }); }
@@ -443,11 +449,19 @@ function CurriculumCardRow({
     audio.play().catch(err => { playbackRef.current = null; setPlayError(err.name); });
   }
 
-  function playDeployed() {
+  async function playDeployed() {
     setPlayError('');
-    const audio = new Audio(`${BASE_URL}audio/${key}.webm`);
-    audio.onerror = () => setPlayError('שגיאה בנגינה');
-    audio.play().catch(() => setPlayError('שגיאה בנגינה'));
+    for (const ext of AUDIO_EXTS) {
+      const src = `${BASE_URL}audio/${key}${ext}`;
+      try {
+        const head = await fetch(src, { method: 'HEAD' });
+        if (!head.ok) continue;
+        const audio = new Audio(src);
+        const ok = await audio.play().then(() => true).catch(() => false);
+        if (ok) return;
+      } catch { /* try next */ }
+    }
+    setPlayError('שגיאה בנגינה');
   }
 
   async function handleDelete() {
