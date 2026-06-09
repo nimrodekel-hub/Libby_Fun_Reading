@@ -200,7 +200,7 @@ export const LETTER_LESSONS = [
       TZERE:  { display: 'עֵ', phonetic: 'עֵ', example: 'עֵגֶל 🐄',    alts: ['עֵפִיפוֹן 🪁', 'עֵין 👁️'] },
       HIRIK:  { display: 'עִ', phonetic: 'עִ', example: 'עִיר 🏙️',   alts: ['עִיפָּרוֹן ✏️', 'עִינַיִם 👀', 'עִיגּוּל ⭕'] },
       HOLAM:  { display: 'עֹ', phonetic: 'עֹ', example: 'עוֹף 🐦',    alts: ['עוֹגָה 🎂', 'עוֹלָם 🌍', 'עוֹגַן ⚓'] },
-      KUBUTZ: { display: 'עֻ', phonetic: 'עֻ', example: 'עֻץ 🌳',      alts: [] },
+      KUBUTZ: { display: 'עֻ', phonetic: 'עֻ', example: 'עֻץ 🧙',      alts: [] },
     },
   },
   {
