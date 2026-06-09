@@ -42,52 +42,25 @@ function consonantCoverage(text, target) {
 }
 
 /**
- * Decide whether `transcript` (top SR result, no nikud) matches the expected nikud.
- *
- * Strategy: use the EXAMPLE WORD rather than a bare syllable.
- * In full Hebrew spelling (ktiv male):
- *   I-group words contain  י  (e.g. "ניגון", "בינה", "שיר")
- *   O/U-group words contain ו  (e.g. "בוקר", "בובה", "נוח")
- *   A/E-group words rarely have these → fall back to consonant coverage
- *
- * For A/E we cannot reliably distinguish the two sounds from SR output;
- * instead we verify the child said the right WORD (≥60% consonant match).
+ * Decide whether `transcript` matches the expected word.
+ * Speech recognition cannot reliably distinguish vowel sounds (kamatz vs patach,
+ * segol vs tzere) — and many A/E-group words contain י or ו in their spelling,
+ * making vowel-marker heuristics unreliable.
+ * Simple consonant coverage is more accurate: did the child say approximately
+ * the right word?  ≥50% of the word's consonants in order = accepted.
  */
-function checkMatch(transcript, targetGroup, exampleWord) {
+function checkMatch(transcript, exampleWord) {
   const t = transcript.trim();
-
-  // Reject empty or single-character transcripts (ambient noise)
+  // Reject very short transcripts (ambient noise / breath)
   if (t.replace(/[֑-ׇ\s]/g, '').length < 2) return false;
-
-  const hasYod = /י/.test(t);
-  const hasVav = /ו/.test(t);
-  const coverage = consonantCoverage(t, exampleWord);
-
-  switch (targetGroup) {
-    case 'I':
-      // "ee" sound: ktiv-male words always spell it with י
-      // Require yod AND at least the first consonant of the example word in transcript
-      return hasYod && exampleWord.length > 0 && t.includes(exampleWord[0]);
-
-    case 'O':
-    case 'U':
-      // "oh/oo" sound: ktiv-male words spell with ו
-      return hasVav && exampleWord.length > 0 && t.includes(exampleWord[0]);
-
-    case 'A':
-    case 'E':
-      // Cannot distinguish these two from each other via SR — accept either.
-      // Require: no yod (that would be I) AND no vav (that would be O/U),
-      // AND at least 60% consonant coverage of the example word.
-      return !hasYod && !hasVav && coverage >= 0.6;
-
-    default:
-      return false;
-  }
+  return consonantCoverage(t, exampleWord) >= 0.5;
 }
 
 // Total window in which we keep restarting recognition if iOS closes it early
-const LISTEN_WINDOW_MS = 6000;
+const LISTEN_WINDOW_MS = 9000;
+// Ignore any result arriving within the first N ms — avoids capturing TTS echo
+// or ambient noise before the child has a chance to speak.
+const MIN_LISTEN_MS = 1200;
 
 export default function SpeechChallenge({ lesson, onComplete }) {
   const { playLessonTile }  = useAudio();
@@ -145,8 +118,9 @@ export default function SpeechChallenge({ lesson, onComplete }) {
 
     function launch() {
       const rec = new SR();
-      rec.lang           = 'he-IL';
-      rec.interimResults = false;
+      rec.lang            = 'he-IL';
+      rec.continuous      = true;  // keep mic open; iOS may ignore but restart loop covers it
+      rec.interimResults  = false;
       rec.maxAlternatives = 1;
 
       rec.onerror = (e) => {
@@ -167,7 +141,7 @@ export default function SpeechChallenge({ lesson, onComplete }) {
         recognitionRef.current = null;
         if (Date.now() - sessionStart < LISTEN_WINDOW_MS) {
           // Small delay prevents Chrome's InvalidStateError on rapid restart
-          setTimeout(launch, 50);
+          setTimeout(launch, 150);
         } else {
           setAttempts(n => n + 1);
           setStatus(STATUS.fail);
@@ -175,9 +149,14 @@ export default function SpeechChallenge({ lesson, onComplete }) {
       };
 
       rec.onresult = (e) => {
-        const top = e.results[0][0].transcript.trim();
+        // Ignore results that arrive too quickly — likely TTS echo or ambient noise
+        // captured before the child had a chance to speak.
+        if (Date.now() - sessionStart < MIN_LISTEN_MS) return;
+
+        const top = e.results[e.results.length - 1][0].transcript.trim();
+        if (!top) return;
         setLastWord(top);
-        const matched = checkMatch(top, currentMeta.group, exWord);
+        const matched = checkMatch(top, exWord);
         stopMic();
         if (matched) {
           setStatus(STATUS.success);
