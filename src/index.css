@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Global RTL + Hebrew font setup ───────────────────────────── */
+html, body {
+  direction: rtl;
+  font-family: 'Rubik', 'Assistant', sans-serif;
+  background: #FDF4FF;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+.font-rubik,
+.font-assistant {
+  font-feature-settings: "kern" 1;
+  text-rendering: optimizeLegibility;
+}
+
+.hebrew-nikud {
+  line-height: 1.5;
+  letter-spacing: 0.05em;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track  { background: #F3E8FF; }
+::-webkit-scrollbar-thumb  { background: #C084FC; border-radius: 3px; }
+
+/* ── Confetti fall ──────────────────────────────────────────────── */
+@keyframes confettiFall {
+  0%   { transform: translateY(-20px) rotate(0deg) scale(1);   opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg) scale(0.4); opacity: 0; }
+}
+
+/* ── Score bump float ───────────────────────────────────────────── */
+@keyframes scoreBump {
+  0%   { opacity: 0; transform: translateY(0)    scale(0.6); }
+  25%  { opacity: 1; transform: translateY(-20px) scale(1.3); }
+  75%  { opacity: 1; transform: translateY(-55px) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-90px) scale(0.9); }
+}
+
+/* ── Sparkle ring burst ─────────────────────────────────────────── */
+@keyframes ringBurst {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+/* ── Tile group glow shadows ────────────────────────────────────── */
+.tile-glow-A { box-shadow: 0 4px 20px rgba(251,191,36,0.35), 0 2px 8px rgba(0,0,0,0.08); }
+.tile-glow-E { box-shadow: 0 4px 20px rgba(244,114,182,0.35), 0 2px 8px rgba(0,0,0,0.08); }
+.tile-glow-I { box-shadow: 0 4px 20px rgba(99,102,241,0.35),  0 2px 8px rgba(0,0,0,0.08); }
+.tile-glow-O { box-shadow: 0 4px 20px rgba(52,211,153,0.35),  0 2px 8px rgba(0,0,0,0.08); }
+.tile-glow-U { box-shadow: 0 4px 20px rgba(167,139,250,0.35), 0 2px 8px rgba(0,0,0,0.08); }
+
+.tile-glow-A:hover { box-shadow: 0 8px 28px rgba(251,191,36,0.55), 0 4px 12px rgba(0,0,0,0.1); }
+.tile-glow-E:hover { box-shadow: 0 8px 28px rgba(244,114,182,0.55), 0 4px 12px rgba(0,0,0,0.1); }
+.tile-glow-I:hover { box-shadow: 0 8px 28px rgba(99,102,241,0.55),  0 4px 12px rgba(0,0,0,0.1); }
+.tile-glow-O:hover { box-shadow: 0 8px 28px rgba(52,211,153,0.55),  0 4px 12px rgba(0,0,0,0.1); }
+.tile-glow-U:hover { box-shadow: 0 8px 28px rgba(167,139,250,0.55), 0 4px 12px rgba(0,0,0,0.1); }
