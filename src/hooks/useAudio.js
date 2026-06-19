@@ -24,6 +24,33 @@ export async function refreshRecordingCache() {
   await warmCache();
 }
 
+// ── Volume boost for parent recordings ───────────────────────────────────────────
+// Recordings tend to come in quiet; boost them via Web Audio gain node.
+const RECORDING_GAIN = 2.5;
+
+let _audioCtx = null;
+function getAudioCtx() {
+  const Cls = window.AudioContext || window.webkitAudioContext;
+  if (!Cls) return null;
+  if (!_audioCtx || _audioCtx.state === 'closed') _audioCtx = new Cls();
+  if (_audioCtx.state === 'suspended') _audioCtx.resume();
+  return _audioCtx;
+}
+
+function boostedPlay(audio) {
+  const ctx = getAudioCtx();
+  if (ctx) {
+    try {
+      const src  = ctx.createMediaElementSource(audio);
+      const gain = ctx.createGain();
+      gain.gain.value = RECORDING_GAIN;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+    } catch { /* fall through — audio still plays at normal volume */ }
+  }
+  return audio.play();
+}
+
 // ── Voice helpers ─────────────────────────────────────────────────────────────
 
 function initVoices() {
@@ -93,7 +120,7 @@ export function useAudio() {
         audioRef.current  = audio;
         audio.onended = () => { isPlayingRef.current = false; };
         audio.onerror = () => { isPlayingRef.current = false; };
-        await audio.play();
+        await boostedPlay(audio);
         return;
       }
     } catch { /* fall through */ }
@@ -131,7 +158,7 @@ export function useAudio() {
       audioRef.current = audio;
       audio.onended = () => { isPlayingRef.current = false; };
       audio.onerror  = () => { isPlayingRef.current = false; };
-      audio.play()
+      boostedPlay(audio)
         .then(() => { isPlayingRef.current = true; })
         .catch(() => { isPlayingRef.current = false; });
     }
