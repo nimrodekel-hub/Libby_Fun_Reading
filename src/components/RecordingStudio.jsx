@@ -7,6 +7,7 @@ import { WORD_CARDS }   from '../data/words';
 import { LETTER_LESSONS, NIKUD_META, NIKUD_ORDER } from '../data/curriculum';
 import { getToken, saveToken, clearToken, uploadRecording, uploadManifest, triggerDeploy, verifyToken, AUDIO_EXTS } from '../utils/githubSync';
 import { fetchManifest, syncAudio, countLocalCached } from '../utils/audioSync';
+import { noteCachedKey, removeCachedKey } from '../hooks/useAudio';
 
 const ALL_CARDS = [
   { group: 'שַׁלַב 1 — אוֹתִיּוֹת', cards: LETTER_CARDS },
@@ -95,7 +96,6 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
     const result = await syncAudio({ force }).catch(() => ({ downloaded: 0, skipped: 0, total: 0 }));
     setSyncResult(result);
     setSyncing(false);
-    // Refresh cached count + local recordings
     if (manifest?.files) {
       const cached = await countLocalCached(manifest.files);
       setCachedCount(cached);
@@ -140,9 +140,7 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
 
     if (uploaded.length > 0) {
       const filesMap = Object.fromEntries(uploaded.map(k => [k, 'wav']));
-      // Update manifest so other devices can discover and download the new files
       uploadManifest(ghToken, filesMap).catch(() => null);
-      // Commit trigger file to code branch so GitHub Actions redeploys Pages
       triggerDeploy(ghToken).catch(() => null);
     }
   }
@@ -346,7 +344,7 @@ export default function RecordingStudio({ onWordChanged: notifyParent }) {
   );
 }
 
-// ── GitHub Token Setup card ───────────────────────────────────────────
+// ── GitHub Token Setup card ───────────────────────────────────────
 function TokenSetup({ token, onSave, onClear }) {
   const [draft,    setDraft]    = useState('');
   const [checking, setChecking] = useState(false);
@@ -483,6 +481,7 @@ function CurriculumCardRow({
         const reader = new FileReader();
         reader.onloadend = async () => {
           await saveRecording(key, reader.result);
+          noteCachedKey(key);
           setStatus('saved');
           onSaved(key);
         };
@@ -531,6 +530,7 @@ function CurriculumCardRow({
 
   async function handleDelete() {
     await deleteRecording(key);
+    removeCachedKey(key);
     setStatus('idle');
     onDeleted(key);
   }
@@ -700,6 +700,7 @@ function CardRow({ card, hasSaved, onSaved, onDeleted }) {
         const reader = new FileReader();
         reader.onloadend = async () => {
           await saveRecording(card.id, reader.result);
+          noteCachedKey(card.id);
           setStatus('saved');
           onSaved(card.id);
         };
@@ -726,6 +727,7 @@ function CardRow({ card, hasSaved, onSaved, onDeleted }) {
 
   async function handleDelete() {
     await deleteRecording(card.id);
+    removeCachedKey(card.id);
     setStatus('idle');
     onDeleted(card.id);
   }

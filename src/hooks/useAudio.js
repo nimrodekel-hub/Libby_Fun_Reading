@@ -1,8 +1,31 @@
 import { useCallback, useRef, useEffect } from 'react';
-import { getRecording } from '../utils/audioStorage';
+import { getRecording, getAllRecordedCardIds } from '../utils/audioStorage';
 import { AUDIO_EXTS } from '../utils/githubSync';
 
-// Load voices immediately and on change (voices load async in browsers)
+// ── In-memory recording cache ─────────────────────────────────────────────────
+// Tracks which IndexedDB keys have recordings, so playLessonTile can skip TTS
+// synchronously instead of waiting for an async IndexedDB lookup.
+const cachedKeys = new Set();
+
+async function warmCache() {
+  try {
+    const ids = await getAllRecordedCardIds();
+    ids.forEach(id => cachedKeys.add(id));
+  } catch { /* best-effort */ }
+}
+
+// Called by RecordingStudio/syncAudio after saving a recording to IndexedDB.
+export function noteCachedKey(key)   { cachedKeys.add(key); }
+export function removeCachedKey(key) { cachedKeys.delete(key); }
+
+// Rebuild the full cache (call after a bulk sync).
+export async function refreshRecordingCache() {
+  cachedKeys.clear();
+  await warmCache();
+}
+
+// ── Voice helpers ─────────────────────────────────────────────────────────────
+
 function initVoices() {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.getVoices();
@@ -30,11 +53,16 @@ function buildUtterance(text, onEnd) {
   return u;
 }
 
+// ── Hook ──────────────────────────────────────────────────────────────────────
+
 export function useAudio() {
   const audioRef     = useRef(null);
   const isPlayingRef = useRef(false);
 
-  useEffect(() => { initVoices(); }, []);
+  useEffect(() => {
+    initVoices();
+    warmCache();
+  }, []);
 
   const stopAll = useCallback(() => {
     audioRef.current?.pause();
@@ -58,7 +86,6 @@ export function useAudio() {
     stopAll();
     isPlayingRef.current = true;
 
-    // Priority 1: parent recording
     try {
       const stored = await getRecording(card.id);
       if (stored) {
@@ -71,7 +98,6 @@ export function useAudio() {
       }
     } catch { /* fall through */ }
 
-    // Priority 2: TTS
     if ('speechSynthesis' in window) {
       const u = buildUtterance(card.display, () => { isPlayingRef.current = false; });
       window.speechSynthesis.speak(u);
@@ -82,57 +108,74 @@ export function useAudio() {
 
   // Playback for curriculum tiles.
   //
-  // Strategy:
+  // Fast path  (recording known to exist):
+  //   Skip TTS entirely. getRecording() resolves in <20 ms — inaudible gap.
+  //
+  // Slow path  (no known recording):
   //   1. Fire TTS immediately (synchronous — preserves iOS Safari gesture context).
   //   2. In the background, check IndexedDB first (fast, offline-capable).
   //   3. Fall back to network static files (.wav → .webm) if not in IndexedDB.
-  //   4. Cancel TTS as soon as a source is found — no waiting for play() to resolve,
-  //      so the parent recording takes over in ~5 ms with no audible TTS bleed.
+  //   4. Cancel TTS as soon as a better source is found.
   const playLessonTile = useCallback((lessonId, nikudType, fallbackText) => {
     if (!lessonId || !nikudType) return;
     stopAll();
     isPlayingRef.current = true;
 
-    // 1 — Fire TTS immediately (must be synchronous for iOS gesture context)
-    if (fallbackText && 'speechSynthesis' in window) {
-      const u = buildUtterance(fallbackText, () => { isPlayingRef.current = false; });
-      window.speechSynthesis.speak(u);
-    } else {
-      isPlayingRef.current = false;
-    }
+    const base  = import.meta.env.BASE_URL ?? '/';
+    const dbKey = `${lessonId}-${nikudType}`;
 
-    const base = import.meta.env.BASE_URL ?? '/';
-    const key  = `${lessonId}-${nikudType}`;
-
-    // Cancel TTS immediately and play src. If play() fails, brief silence — acceptable.
-    function tryAudio(src) {
+    function playSource(src) {
       window.speechSynthesis?.cancel();
+      isPlayingRef.current = true;
       const audio = new Audio(src);
       audioRef.current = audio;
       audio.onended = () => { isPlayingRef.current = false; };
-      audio.onerror = () => { isPlayingRef.current = false; };
+      audio.onerror  = () => { isPlayingRef.current = false; };
       audio.play()
         .then(() => { isPlayingRef.current = true; })
         .catch(() => { isPlayingRef.current = false; });
     }
 
-    // 2 — Background: IndexedDB first (offline — picks up auto-synced recordings)
-    async function upgradeFromStatic() {
-      try {
-        const stored = await getRecording(key);
-        if (stored) { tryAudio(stored); return; }
-      } catch { /* fall through to network */ }
-      // 3 — Network: static files (.wav first for iOS compat, .webm fallback)
-      for (const ext of AUDIO_EXTS) {
-        const src = `${base}audio/${key}${ext}`;
-        try {
-          const res = await fetch(src, { method: 'HEAD' });
-          if (res.ok) { tryAudio(src); return; }
-        } catch { /* try next */ }
+    function fireTTS() {
+      if (fallbackText && 'speechSynthesis' in window) {
+        const u = buildUtterance(fallbackText, () => { isPlayingRef.current = false; });
+        window.speechSynthesis.speak(u);
+      } else {
+        isPlayingRef.current = false;
       }
     }
 
-    upgradeFromStatic();
+    // Fast path: recording is known to be in IndexedDB — skip TTS entirely.
+    if (cachedKeys.has(dbKey)) {
+      getRecording(dbKey)
+        .then(stored => { if (stored) { playSource(stored); return; } fireTTS(); })
+        .catch(fireTTS);
+      return;
+    }
+
+    // Slow path: no cached recording — fire TTS immediately.
+    fireTTS();
+
+    // Background: IndexedDB first (may have been synced since cache was built),
+    // then network static files (.wav → .webm).
+    (async () => {
+      try {
+        const stored = await getRecording(dbKey);
+        if (stored) {
+          cachedKeys.add(dbKey); // warm cache for next time
+          playSource(stored);
+          return;
+        }
+      } catch { /* fall through to network */ }
+
+      for (const ext of AUDIO_EXTS) {
+        try {
+          const src = `${base}audio/${dbKey}${ext}`;
+          const res = await fetch(src, { method: 'HEAD' });
+          if (res.ok) { playSource(src); return; }
+        } catch { /* try next */ }
+      }
+    })();
   }, [stopAll]);
 
   return { playCardAudio, playText, playLessonTile, stopAll };

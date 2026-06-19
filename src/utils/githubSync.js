@@ -97,7 +97,7 @@ export async function uploadRecording(token, key, dataUrl) {
     method:  'PUT',
     headers: headers(token),
     body:    JSON.stringify({
-      message: `🎙️ recording: ${key}`,
+      message: `recording: ${key}`,
       content:  base64,
       branch:   BRANCH,
       ...(sha ? { sha } : {}),
@@ -132,7 +132,7 @@ export async function triggerDeploy(token) {
     method: 'PUT',
     headers: headers(token),
     body: JSON.stringify({
-      message: '🚀 trigger deploy after recording upload',
+      message: 'trigger deploy after recording upload',
       content: btoa(new Date().toISOString()),
       branch:  CODE_BRANCH,
       ...(sha ? { sha } : {}),
@@ -169,7 +169,7 @@ export async function uploadManifest(token, filesMap) {
     method:  'PUT',
     headers: headers(token),
     body:    JSON.stringify({
-      message: '🗂️ update audio manifest',
+      message: 'update audio manifest',
       content,
       branch:  BRANCH,
       ...(sha ? { sha } : {}),
