@@ -6,7 +6,7 @@
 html, body {
   direction: rtl;
   font-family: 'Rubik', 'Assistant', sans-serif;
-  background: #FDF4FF;
+  background: #0e0b1e;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   max-width: 100vw;
@@ -24,8 +24,8 @@ html, body {
 }
 
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track  { background: #F3E8FF; }
-::-webkit-scrollbar-thumb  { background: #C084FC; border-radius: 3px; }
+::-webkit-scrollbar-track  { background: #1e1052; }
+::-webkit-scrollbar-thumb  { background: #7c3aed; border-radius: 3px; }
 
 /* ── Confetti fall ──────────────────────────────────────────────── */
 @keyframes confettiFall {
@@ -48,15 +48,15 @@ html, body {
   100% { transform: scale(2.4); opacity: 0; }
 }
 
-/* ── Tile group glow shadows ────────────────────────────────────── */
-.tile-glow-A { box-shadow: 0 4px 20px rgba(251,191,36,0.35), 0 2px 8px rgba(0,0,0,0.08); }
-.tile-glow-E { box-shadow: 0 4px 20px rgba(244,114,182,0.35), 0 2px 8px rgba(0,0,0,0.08); }
-.tile-glow-I { box-shadow: 0 4px 20px rgba(99,102,241,0.35),  0 2px 8px rgba(0,0,0,0.08); }
-.tile-glow-O { box-shadow: 0 4px 20px rgba(52,211,153,0.35),  0 2px 8px rgba(0,0,0,0.08); }
-.tile-glow-U { box-shadow: 0 4px 20px rgba(167,139,250,0.35), 0 2px 8px rgba(0,0,0,0.08); }
+/* ── Tile group glow shadows (stronger for dark bg) ─────────────── */
+.tile-glow-A { box-shadow: 0 6px 24px rgba(251,191,36,0.60), 0 3px 8px rgba(0,0,0,0.25); }
+.tile-glow-E { box-shadow: 0 6px 24px rgba(244,114,182,0.60), 0 3px 8px rgba(0,0,0,0.25); }
+.tile-glow-I { box-shadow: 0 6px 24px rgba(99,102,241,0.60),  0 3px 8px rgba(0,0,0,0.25); }
+.tile-glow-O { box-shadow: 0 6px 24px rgba(52,211,153,0.60),  0 3px 8px rgba(0,0,0,0.25); }
+.tile-glow-U { box-shadow: 0 6px 24px rgba(167,139,250,0.60), 0 3px 8px rgba(0,0,0,0.25); }
 
-.tile-glow-A:hover { box-shadow: 0 8px 28px rgba(251,191,36,0.55), 0 4px 12px rgba(0,0,0,0.1); }
-.tile-glow-E:hover { box-shadow: 0 8px 28px rgba(244,114,182,0.55), 0 4px 12px rgba(0,0,0,0.1); }
-.tile-glow-I:hover { box-shadow: 0 8px 28px rgba(99,102,241,0.55),  0 4px 12px rgba(0,0,0,0.1); }
-.tile-glow-O:hover { box-shadow: 0 8px 28px rgba(52,211,153,0.55),  0 4px 12px rgba(0,0,0,0.1); }
-.tile-glow-U:hover { box-shadow: 0 8px 28px rgba(167,139,250,0.55), 0 4px 12px rgba(0,0,0,0.1); }
+.tile-glow-A:hover { box-shadow: 0 10px 36px rgba(251,191,36,0.80), 0 4px 12px rgba(0,0,0,0.3); }
+.tile-glow-E:hover { box-shadow: 0 10px 36px rgba(244,114,182,0.80), 0 4px 12px rgba(0,0,0,0.3); }
+.tile-glow-I:hover { box-shadow: 0 10px 36px rgba(99,102,241,0.80),  0 4px 12px rgba(0,0,0,0.3); }
+.tile-glow-O:hover { box-shadow: 0 10px 36px rgba(52,211,153,0.80),  0 4px 12px rgba(0,0,0,0.3); }
+.tile-glow-U:hover { box-shadow: 0 10px 36px rgba(167,139,250,0.80), 0 4px 12px rgba(0,0,0,0.3); }

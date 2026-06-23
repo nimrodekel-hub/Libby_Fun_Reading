@@ -4,30 +4,31 @@ import { NIKUD_ORDER } from '../data/curriculum';
 const HEAR_THRESHOLD = 7;
 
 export default function LetterExplorer({ lesson, heardSet, onHear, onGoToQuiz, canGoToQuiz }) {
-  const isOdd     = NIKUD_ORDER.length % 2 !== 0;
+  const isOdd      = NIKUD_ORDER.length % 2 !== 0;
   const heardCount = heardSet.size;
   const remaining  = Math.max(0, HEAR_THRESHOLD - heardCount);
 
   return (
     <div className="flex flex-col items-center gap-5 w-full max-w-lg mx-auto px-4 py-6">
 
-      {/* Letter hero card */}
+      {/* Letter hero — golden glowing medallion */}
       <div className="text-center animate-slide-up">
         <div
-          className="w-28 h-28 rounded-3xl flex items-center justify-center mx-auto mb-2 font-black font-rubik text-purple-900 text-6xl shadow-lg"
+          className="w-32 h-32 rounded-full flex items-center justify-center mx-auto mb-3 font-black font-rubik text-6xl"
           style={{
-            background: 'linear-gradient(135deg, #f5f3ff, #fce7f3)',
-            border: '3px solid rgba(196,181,253,0.6)',
-            boxShadow: '0 8px 32px rgba(168,85,247,0.2)',
+            background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fbbf24 100%)',
+            border: '4px solid rgba(251,191,36,0.85)',
+            boxShadow: '0 0 48px rgba(251,191,36,0.55), 0 8px 32px rgba(0,0,0,0.4)',
+            color: '#78350f',
             direction: 'rtl',
           }}
         >
           {lesson.base}
         </div>
-        <div className="text-lg font-bold text-purple-600 font-assistant">
+        <div className="text-xl font-black text-white font-rubik drop-shadow-md">
           {lesson.emoji} אוֹת {lesson.name}
         </div>
-        <p className="text-sm text-purple-400 font-assistant mt-1">
+        <p className="text-sm font-assistant mt-1" style={{ color: 'rgba(255,255,255,0.65)' }}>
           לְחֲצִי עַל כָּל אוֹת לִשְׁמוֹעַ 🔊
         </p>
       </div>
@@ -52,7 +53,7 @@ export default function LetterExplorer({ lesson, heardSet, onHear, onGoToQuiz, c
         })}
       </div>
 
-      {/* Progress bar + dots */}
+      {/* Progress dots + bar */}
       <div className="w-full flex flex-col items-center gap-2">
         <div className="flex gap-2 items-center">
           {NIKUD_ORDER.map(type => (
@@ -61,17 +62,17 @@ export default function LetterExplorer({ lesson, heardSet, onHear, onGoToQuiz, c
               className={`transition-all duration-400 rounded-full ${
                 heardSet.has(type)
                   ? 'w-4 h-4 bg-green-400 shadow-md scale-110'
-                  : 'w-3 h-3 bg-purple-200'
+                  : 'w-3 h-3'
               }`}
+              style={heardSet.has(type) ? {} : { background: 'rgba(255,255,255,0.3)' }}
             />
           ))}
-          <span className="text-xs text-purple-400 font-assistant mr-2">
+          <span className="text-xs font-assistant mr-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
             {heardCount}/{NIKUD_ORDER.length} שָׁמַעְתְּ
           </span>
         </div>
 
-        {/* Mini progress fill */}
-        <div className="w-48 h-2 bg-purple-100 rounded-full overflow-hidden">
+        <div className="w-48 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.2)' }}>
           <div
             className="h-full rounded-full transition-all duration-500"
             style={{
@@ -89,14 +90,17 @@ export default function LetterExplorer({ lesson, heardSet, onHear, onGoToQuiz, c
         className={`
           w-full py-4 rounded-2xl text-xl font-black font-rubik transition-all duration-300
           ${canGoToQuiz
-            ? 'text-white hover:scale-105 hover:-translate-y-1 active:scale-95'
-            : 'text-purple-300 cursor-not-allowed'}
+            ? 'hover:scale-105 hover:-translate-y-1 active:scale-95'
+            : 'cursor-not-allowed'}
         `}
         style={canGoToQuiz ? {
-          background: 'linear-gradient(135deg, #9333ea, #ec4899)',
-          boxShadow: '0 8px 28px rgba(147,51,234,0.45)',
+          background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+          color: '#1c1917',
+          boxShadow: '0 8px 32px rgba(251,191,36,0.55), 0 4px 12px rgba(0,0,0,0.3)',
         } : {
-          background: 'rgba(237,233,254,0.7)',
+          background: 'rgba(255,255,255,0.12)',
+          color: 'rgba(255,255,255,0.45)',
+          border: '1px solid rgba(255,255,255,0.15)',
         }}
       >
         {canGoToQuiz
