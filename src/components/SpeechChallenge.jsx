@@ -43,15 +43,9 @@ function consonantCoverage(text, target) {
 
 /**
  * Decide whether `transcript` matches the expected word.
- * Speech recognition cannot reliably distinguish vowel sounds (kamatz vs patach,
- * segol vs tzere) — and many A/E-group words contain י or ו in their spelling,
- * making vowel-marker heuristics unreliable.
- * Simple consonant coverage is more accurate: did the child say approximately
- * the right word?  ≥50% of the word's consonants in order = accepted.
  */
 function checkMatch(transcript, exampleWord) {
   const t = transcript.trim();
-  // Reject very short transcripts (ambient noise / breath)
   if (t.replace(/[֑-ׇ\s]/g, '').length < 2) return false;
   return consonantCoverage(t, exampleWord) >= 0.5;
 }
@@ -59,7 +53,6 @@ function checkMatch(transcript, exampleWord) {
 // Total window in which we keep restarting recognition if iOS closes it early
 const LISTEN_WINDOW_MS = 9000;
 // Ignore any result arriving within the first N ms — avoids capturing TTS echo
-// or ambient noise before the child has a chance to speak.
 const MIN_LISTEN_MS = 1200;
 
 export default function SpeechChallenge({ lesson, onComplete }) {
@@ -72,8 +65,6 @@ export default function SpeechChallenge({ lesson, onComplete }) {
   const recognitionRef = useRef(null);
 
   // Cleanly abort any active recognition session without triggering state updates.
-  // Nulling the handlers first prevents onend from firing after abort(),
-  // which stops the auto-restart loop when we intentionally stop.
   const stopMic = useCallback(() => {
     const rec = recognitionRef.current;
     if (!rec) return;
@@ -84,7 +75,7 @@ export default function SpeechChallenge({ lesson, onComplete }) {
     recognitionRef.current = null;
   }, []);
 
-  // Stop mic on unmount, tab hide, and page unload (covers refresh + close)
+  // Stop mic on unmount, tab hide, and page unload
   useEffect(() => {
     function onHide()   { if (document.hidden) stopMic(); }
     function onUnload() { stopMic(); }
@@ -102,31 +93,23 @@ export default function SpeechChallenge({ lesson, onComplete }) {
   const currentMeta = NIKUD_META[currentType];
   const gc          = GROUP_COLORS[currentMeta.group];
   const total       = NIKUD_ORDER.length;
-  const exWord      = extractExampleWord(currentData.example); // e.g. "נחש"
+  const exWord      = extractExampleWord(currentData.example);
 
   const startListening = useCallback(() => {
     stopMic();
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { setStatus(STATUS.unsupported); return; }
 
-    // iOS Safari closes SpeechRecognition after ~1 s regardless of `continuous`.
-    // Fix: track when the session started and relaunch transparently on every
-    // premature onend, until LISTEN_WINDOW_MS has elapsed.
-    // stopMic() nulls onend before abort(), so the loop stops cleanly on
-    // intentional stops (advancing, unmount, tab hide).
     const sessionStart = Date.now();
 
     function launch() {
       const rec = new SR();
       rec.lang            = 'he-IL';
-      rec.continuous      = true;  // keep mic open; iOS may ignore but restart loop covers it
+      rec.continuous      = true;
       rec.interimResults  = false;
       rec.maxAlternatives = 1;
 
       rec.onerror = (e) => {
-        // Only mic-level fatal errors should stop listening.
-        // 'no-speech', 'network', 'aborted', 'bad-grammar' etc. are transient —
-        // let onend handle the restart.
         const fatal = ['not-allowed', 'audio-capture', 'service-not-allowed'];
         if (fatal.includes(e.error)) {
           stopMic();
@@ -136,11 +119,8 @@ export default function SpeechChallenge({ lesson, onComplete }) {
       };
 
       rec.onend = () => {
-        // onend only fires here if stopMic() was NOT called
-        // (stopMic nulls onend before abort, so this is a browser-side close)
         recognitionRef.current = null;
         if (Date.now() - sessionStart < LISTEN_WINDOW_MS) {
-          // Small delay prevents Chrome's InvalidStateError on rapid restart
           setTimeout(launch, 150);
         } else {
           setAttempts(n => n + 1);
@@ -149,10 +129,7 @@ export default function SpeechChallenge({ lesson, onComplete }) {
       };
 
       rec.onresult = (e) => {
-        // Ignore results that arrive too quickly — likely TTS echo or ambient noise
-        // captured before the child had a chance to speak.
         if (Date.now() - sessionStart < MIN_LISTEN_MS) return;
-
         const top = e.results[e.results.length - 1][0].transcript.trim();
         if (!top) return;
         setLastWord(top);
@@ -230,7 +207,6 @@ export default function SpeechChallenge({ lesson, onComplete }) {
           >
             {currentData.example.replace(/[^א-׺֑-ׇ\s]/g, '').trim()}
           </div>
-          {/* Play it first button */}
           <button
             onClick={() => { const wordOnly = currentData.example.replace(/[^א-׺֑-ׇ\s]/g, '').trim(); playLessonTile(lesson.id, currentType, wordOnly); }}
             className="mt-2 flex items-center gap-2 mx-auto px-4 py-1.5 bg-white/60 hover:bg-white/90 rounded-full text-sm font-bold font-assistant transition-colors"
@@ -271,7 +247,7 @@ export default function SpeechChallenge({ lesson, onComplete }) {
         </div>
       )}
 
-      {/* Mic button */}
+      {/* Mic button — start listening */}
       {(status === STATUS.idle || (status === STATUS.fail && canTryAgain)) && (
         <button
           onClick={startListening}
@@ -284,14 +260,22 @@ export default function SpeechChallenge({ lesson, onComplete }) {
         </button>
       )}
 
+      {/* Mic button — stop listening (clickable to cancel) */}
       {status === STATUS.listening && (
         <div className="flex flex-col items-center gap-3">
-          <div className="w-28 h-28 rounded-full text-white text-5xl
-                          shadow-2xl animate-pulse flex items-center justify-center"
-               style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)' }}>
+          <button
+            onClick={() => { stopMic(); setStatus(STATUS.idle); }}
+            className="w-28 h-28 rounded-full text-white text-5xl
+                       shadow-2xl animate-pulse flex items-center justify-center
+                       hover:scale-110 active:scale-95 transition-transform"
+            style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)' }}
+            aria-label="עצרי הקשבה"
+          >
             🎙️
-          </div>
-          <p className="text-purple-500 font-bold font-assistant animate-pulse">מַקְשִׁיב...</p>
+          </button>
+          <p className="text-purple-500 font-bold font-assistant animate-pulse text-sm">
+            מַקְשִׁיב... לְחֲצִי לְעֶצֶר ✋
+          </p>
         </div>
       )}
 
