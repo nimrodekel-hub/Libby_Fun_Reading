@@ -46,6 +46,7 @@
   <button id="btnSnap">📸 צילום עם הפיה</button>
   <button id="btnPhoto" class="ghost">🖼️ פיה על תמונה מהגלריה</button>
   <input id="file" type="file" accept="image/*" class="hidden">
+  <div id="preload" style="font-size:13px;opacity:.75;min-height:18px"></div>
   <div id="err" class="hidden"></div>
 </div>
 
@@ -174,6 +175,7 @@ self.onmessage=async e=>{ const m=e.data;
   }
 };`;
 function updDepthPill(){
+  const pl=$('preload'); if(pl) pl.textContent = DEPTH.ready? '🧠 זיהוי העומק מוכן ✓' : DEPTH.loading? `🧠 מוריד את מודל העומק ברקע… ${Math.round(DEPTH.progress*100)}% (רק בפעם הראשונה)` : DEPTH.err? '' : '';
   const p=$('dstat'); if(!p) return;
   if(DEPTH.ready) p.textContent = DEPTH.map? `🧠 עומק (${DEPTH.device}) ${Math.round(DEPTH.ms)}ms · ${DEPTH.spots} מסתורים` : '🧠 מחשב עומק...';
   else if(DEPTH.loading) p.textContent = `🧠 טוען זיהוי עומק ${Math.round(DEPTH.progress*100)}%`;
@@ -290,6 +292,58 @@ async function enableMotion(){ try{ if(typeof DeviceOrientationEvent!=='undefine
 const toWorldH=x=>camH+(x-W/2)/ppd(), toWorldV=y=>camV-(y-H/2)/ppd();
 const toScreenX=hh=>W/2+angDiff(hh,camH)*ppd(), toScreenY=vv=>H/2+(camV-vv)*ppd();
 
+// ================= RICHER FAIRY: flapping wings, breathing, glow, scene-matched light, per-appearance variety =================
+const WL={x0:0,x1:.30,y1:.55}, WR={x0:.715,x1:1,y1:.58};
+const GLOWS=['255,214,120','255,170,215','170,220,255','190,255,190','230,190,255'];
+const EMOTES=['👋','🤭','😜','💖','✨','🙈','😄'];
+const sampC=document.createElement('canvas'); sampC.width=sampC.height=8; const sampX=sampC.getContext('2d',{willReadFrequently:true});
+function sampleLight(bx,by,w){ // average colour & brightness of the real scene around the fairy
+  const r=coverRect(vid,W,H); if(!r) return {c:[128,128,128],l:.5};
+  const k=1/r.k, sx=(bx-w-r.x)*k, sy=(by-w-r.y)*k, sw=2*w*k;
+  try{ sampX.drawImage(vid,sx,sy,sw,sw,0,0,8,8); const d=sampX.getImageData(0,0,8,8).data; let R=0,G=0,B=0; for(let i=0;i<d.length;i+=4){R+=d[i];G+=d[i+1];B+=d[i+2];}
+    R/=64;G/=64;B/=64; return {c:[R,G,B],l:(R*.3+G*.59+B*.11)/255}; }catch(e){ return {c:[128,128,128],l:.5}; }
+}
+function varyLook(s){ // a different fairy "mood" every time she appears
+  s.look={ glow:GLOWS[Math.floor(Math.random()*GLOWS.length)], hue:Math.round(rnd(-50,50)), flap:rnd(.75,1.4), tilt:rnd(-.12,.12),
+    size:rnd(.88,1.12), emote:Math.random()<.4?EMOTES[Math.floor(Math.random()*EMOTES.length)]:null,
+    speed:rnd(.75,1.35), bobAmp:rnd(.02,.05) };
+  s.w*=s.look.size; s.h=s.w*fRatio();
+  const L=sampleLight(toScreenX(s.wh),toScreenY(s.wv),s.w); s.light=L; sceneLum=L.l;
+}
+function drawFairyRich(c,g,alpha,s){
+  const w=g.w,h=g.h,now=performance.now(), L=s.look||{glow:GLOWS[0],hue:0,flap:1,tilt:0}, lt=s.light||{c:[128,128,128],l:.5};
+  const f=1-.2*(.5+.5*Math.sin(now/52*L.flap));            // wing beat
+  const breathe=1+Math.sin(now/700)*.012;
+  c.save(); if(g.clip){ c.beginPath(); g.clip(c); c.clip(); }
+  c.globalAlpha=alpha; c.translate(g.x,g.y); c.rotate(g.rot||0); if(g.flip) c.scale(-1,1); c.scale(1,breathe);
+  // soft light she gives off (also gets hidden behind objects with her)
+  const gr=c.createRadialGradient(0,-h*.12,0,0,-h*.12,w*.75); gr.addColorStop(0,`rgba(${L.glow},.34)`); gr.addColorStop(.5,`rgba(${L.glow},.12)`); gr.addColorStop(1,`rgba(${L.glow},0)`);
+  c.fillStyle=gr; c.fillRect(-w*.8,-h*.9,w*1.6,h*1.6);
+  const X0=-w/2,Y0=-h/2, hasF='filter' in c;
+  const wing=(R,hinge)=>{ c.save(); c.beginPath(); c.rect(X0+R.x0*w,Y0,(R.x1-R.x0)*w,R.y1*h); c.clip();
+    const hx=X0+hinge*w; c.translate(hx,0); c.scale(f,1); c.translate(-hx,0);
+    if(hasF&&L.hue) c.filter=`hue-rotate(${L.hue}deg) saturate(1.2)`; c.drawImage(fairy,X0,Y0,w,h); c.restore(); };
+  wing(WL,WL.x1); wing(WR,WR.x0);
+  c.save(); c.beginPath(); c.rect(X0,Y0,w,h); c.rect(X0+WL.x0*w,Y0,(WL.x1-WL.x0)*w,WL.y1*h); c.rect(X0+WR.x0*w,Y0,(WR.x1-WR.x0)*w,WR.y1*h); c.clip('evenodd');
+  c.drawImage(fairy,X0,Y0,w,h); c.restore();
+  // match the scene's light: tint toward the surrounding colour, darken in shade
+  c.globalCompositeOperation='source-atop';
+  c.fillStyle=`rgba(${lt.c.map(Math.round).join(',')},.16)`; c.fillRect(X0,Y0,w,h);
+  const dark=Math.max(0,.5-lt.l)*.9; if(dark>.02){ c.fillStyle=`rgba(0,0,0,${dark.toFixed(3)})`; c.fillRect(X0,Y0,w,h); }
+  c.restore();
+}
+function drawEmote(g,s,o){ if(!s.look||!s.look.emote||o<.6) return; const p=visiblePoint(g); if(!p) return;
+  ctx.save(); ctx.globalAlpha=Math.min(1,(o-.6)*2.5); ctx.font=`${Math.round(g.w*.2)}px sans-serif`; ctx.textAlign='center';
+  ctx.fillText(s.look.emote, g.x+(g.flip?-1:1)*g.w*.18, g.y-g.h*.52+Math.sin(performance.now()/300)*4); ctx.restore(); }
+function contactShadow(g,s,o){ if(s.type!=='h'||o<.4) return; const by=toScreenY(s.wv);
+  ctx.save(); const gr=ctx.createRadialGradient(g.x,by+g.h*.02,0,g.x,by+g.h*.02,g.w*.35); gr.addColorStop(0,`rgba(0,0,0,${.28*o})`); gr.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=gr; ctx.beginPath(); ctx.ellipse(g.x,by+g.h*.03,g.w*.35,g.h*.06,0,0,6.283); ctx.fill(); ctx.restore(); }
+function giggle(){ try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const t=AC.currentTime;
+  for(let i=0;i<4;i++){ const o=AC.createOscillator(),gn=AC.createGain(); o.type='triangle'; const f0=rnd(900,1300);
+    o.frequency.setValueAtTime(f0,t+i*.11); o.frequency.exponentialRampToValueAtTime(f0*1.35,t+i*.11+.07);
+    gn.gain.setValueAtTime(0,t+i*.11); gn.gain.linearRampToValueAtTime(.06,t+i*.11+.01); gn.gain.exponentialRampToValueAtTime(.001,t+i*.11+.1);
+    o.connect(gn).connect(AC.destination); o.start(t+i*.11); o.stop(t+i*.11+.12); } }catch(e){} }
+
 // ================= GAME =================
 let score=0, miss=0, lastSpot=null, sceneLum=.5;
 const fs={phase:'idle',t0:0,dur:0,spot:null,next:null};
@@ -310,8 +364,8 @@ function pickSpot(){ // basic (no depth yet): edges in the image + clipping
   const s=opts[Math.floor(Math.random()*opts.length)]; s.mode='peek'; return anchor(s);
 }
 function startHide(){ fs.phase='hide'; fs.t0=performance.now(); fs.dur=rnd(800,1800); fs.next=null; }
-function startOut(){ fs.spot=fs.next||pickSpot(); if(!fs.spot){startHide();return;} lastSpot=fs.spot; fs.phase='out'; fs.t0=performance.now();
-  fs.hold=Math.max(700,2300-score*70)+(fs.spot.mode==='fly'?900:0); fs.dur=450+fs.hold+450; }
+function startOut(){ fs.spot=fs.next||pickSpot(); if(!fs.spot){startHide();return;} lastSpot=fs.spot; varyLook(fs.spot); if(Math.random()<.35) giggle(); fs.phase='out'; fs.t0=performance.now();
+  fs.hold=(Math.max(700,2300-score*70)+(fs.spot.mode==='fly'?900:0))*fs.spot.look.speed; fs.dur=450+fs.hold+450; }
 // position along the "come out -> stay -> go back" path
 function geom(now){
   const s=fs.spot, t=now-fs.t0; const bx=toScreenX(s.wh), by=toScreenY(s.wv);
@@ -321,12 +375,12 @@ function geom(now){
     const vis = s.mode==='fly'? .55+.75*Math.max(0,Math.sin(Math.min(1,Math.max(0,(t-450)/Math.max(1,fs.hold)))*Math.PI)) : .6;
     const v=-.08+o*(vis+.08);                          // visible fraction past the object's edge
     const x=bx+s.dir*(v-.5)*w, y=by+Math.sin(now/380)*h*.035-(s.mode==='fly'?Math.sin(Math.min(1,Math.max(0,(t-450)/Math.max(1,fs.hold)))*Math.PI)*h*.25:0);
-    const g={x,y,w,h,flip:s.dir<0,rot:s.dir*wig*o};
+    const g={x,y,w,h,flip:s.dir<0,rot:s.dir*wig*o+(s.look?s.look.tilt:0)};
     if(!s.depth){ g.clip=c=> s.dir>0? c.rect(bx,0,W-bx,H) : c.rect(0,0,bx,H); g.clipTest=(px)=> s.dir>0? px>bx : px<bx; }
     return g;
   } else {
     const cy=by+h*.55-o*(h*.55+h*(ARMS-.5));          // from fully below the top edge to arms resting on it
-    const g={x:bx+Math.sin(now/500)*w*.03,y:cy,w,h,flip:false,rot:wig*.4*o};
+    const g={x:bx+Math.sin(now/500)*w*.03,y:cy,w,h,flip:false,rot:wig*.4*o+(s.look?s.look.tilt*.5:0)};
     if(!s.depth){ g.clip=c=>c.rect(0,0,W,by); g.clipTest=(px,py)=>py<by; }
     return g;
   }
@@ -359,7 +413,7 @@ function frame(now){
 function renderFairyLayer(g,alpha){
   const FD=Math.min(DPR,1.5); if(fC.width!==Math.round(W*FD)||fC.height!==Math.round(H*FD)){ fC.width=Math.round(W*FD); fC.height=Math.round(H*FD); }
   fCtx.setTransform(FD,0,0,FD,0,0); fCtx.clearRect(0,0,W,H);
-  drawFairy(fCtx,g.x,g.y,g.w,{flip:g.flip,rot:g.rot,clip:g.clip,alpha,bright:.75+sceneLum*.6});
+  drawFairyRich(fCtx,g,alpha,fs.spot);
   if(fs.spot.depth && DEPTH.map){ // real occlusion: erase every pixel where the scene is nearer than the fairy
     if(maskDirty||maskFd!==fs.spot.fd) buildMask(fs.spot.fd);
     const o=depthOffset(); fCtx.globalCompositeOperation='destination-out'; fCtx.imageSmoothingEnabled=true;
@@ -380,7 +434,7 @@ function gameFrame(now){
     if(t>fs.dur) startOut();
   } else if(fs.phase==='out'||fs.phase==='caught'){
     if(t>fs.dur){ if(fs.phase==='out'){ miss++; updHud(); } startHide(); }
-    else { const g=geom(now); curG=g; renderFairyLayer(g, fs.phase==='caught'?1-Math.min(1,t/600):1);
+    else { const g=geom(now); curG=g; const oo=t<450?t/450:t>450+fs.hold?Math.max(0,1-(t-450-fs.hold)/450):1; contactShadow(g,fs.spot,oo); renderFairyLayer(g, fs.phase==='caught'?1-Math.min(1,t/600):1); drawEmote(g,fs.spot,fs.phase==='caught'?0:oo);
       if(now-lastSp>110 && fs.phase==='out'){ lastSp=now; const p=visiblePoint(g); if(p) spark(p.x,p.y,1,1); } }
   }
 }
@@ -591,6 +645,7 @@ $('btnPhoto').onclick=pickFile; $('btnFile').onclick=pickFile;
 $('file').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; const img=new Image();
   img.onload=()=>{ $('start').classList.add('hidden'); hideBars(); processStill(img); }; img.src=URL.createObjectURL(f); };
 requestAnimationFrame(frame);
+setTimeout(loadDepth,300); // start downloading the depth model right away (cached after the first time)
 
 </script>
 </body>
