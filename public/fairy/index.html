@@ -135,55 +135,83 @@ function analyze(src, rect, fw){ // rect: where src is drawn on screen
   return {v:vs.slice(0,6).filter(e=>e.s>9).map(e=>({x:e.x/sx,s:e.s})), h:hs.slice(0,6).filter(e=>e.s>9).map(e=>({x:e.x/sx,y:e.y/sx,s:e.s})), lum:avg/255};
 }
 
-// ================= DEPTH ENGINE (Depth Anything V2, runs in the browser) =================
+// ================= DEPTH ENGINE (Depth Anything V2 in a Web Worker – never blocks the game) =================
 const TFLIB='https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6/dist/transformers.min.js';
 const DMODEL='onnx-community/depth-anything-v2-small';
-const DEPTH={ready:false,loading:false,progress:0,map:null,w:0,h:0,err:null,ms:0,camH:0,camV:0,running:false,seq:0};
-let TF=null, depthModel=null, showDepth=false;
+const DEPTH={ready:false,loading:false,progress:0,map:null,w:0,h:0,err:null,ms:0,camH:0,camV:0,running:false,seq:0,device:'',spots:0,busy:false};
+let showDepth=false, dWorker=null;
 const dIn=document.createElement('canvas'), dInCtx=dIn.getContext('2d',{willReadFrequently:true});
+const WORKER_SRC=`
+let TF=null, model=null, dev='';
+self.onmessage=async e=>{ const m=e.data;
+  if(m.type==='load'){
+    try{
+      TF=await import(m.lib);
+      if(m.localModelPath){ TF.env.allowRemoteModels=false; TF.env.allowLocalModels=true; TF.env.localModelPath=m.localModelPath; }
+      if(m.wasmPaths) TF.env.backends.onnx.wasm.wasmPaths=m.wasmPaths;
+      const files={}; const prog=p=>{ if(p.status==='progress'&&p.total){ files[p.file]=[p.loaded,p.total]; let a=0,b=0; for(const k in files){a+=files[k][0];b+=files[k][1];} self.postMessage({type:'progress',v:b?a/b:0}); } };
+      const Cls=TF.AutoModelForDepthEstimation||TF.AutoModel;
+      let ok=false;
+      if(m.tryGpu && self.navigator && navigator.gpu){
+        try{ const ad=await navigator.gpu.requestAdapter(); if(ad){ model=await Cls.from_pretrained(m.model,{device:'webgpu',dtype:'fp16',progress_callback:prog}); dev='GPU'; ok=true; } }catch(err){ console.warn('webgpu failed',err); }
+      }
+      if(!ok){ model=await Cls.from_pretrained(m.model,{device:'wasm',dtype:'q8',progress_callback:prog}); dev='CPU'; }
+      self.postMessage({type:'ready',device:dev});
+    }catch(err){ self.postMessage({type:'error',msg:String(err&&err.message||err)}); }
+  }
+  if(m.type==='run'){
+    try{
+      const {w,h,px}=m, N=w*h, f=new Float32Array(3*N), M=[.485,.456,.406], S=[.229,.224,.225];
+      for(let i=0;i<N;i++){ const j=i*4; f[i]=(px[j]/255-M[0])/S[0]; f[N+i]=(px[j+1]/255-M[1])/S[1]; f[2*N+i]=(px[j+2]/255-M[2])/S[2]; }
+      const t0=performance.now();
+      const out=await model({pixel_values:new TF.Tensor('float32',f,[1,3,h,w])});
+      const pd=out.predicted_depth||Object.values(out)[0]; const dims=pd.dims, oh=dims[dims.length-2], ow=dims[dims.length-1];
+      const d=Float32Array.from(pd.data); const n=ow*oh, smp=[]; for(let i=0;i<n;i+=5) smp.push(d[i]); smp.sort((a,b)=>a-b);
+      const lo=smp[Math.floor(smp.length*.02)], hi=smp[Math.floor(smp.length*.98)], k=1/Math.max(1e-6,hi-lo);
+      for(let i=0;i<n;i++){ const v=(d[i]-lo)*k; d[i]=v<0?0:v>1?1:v; }
+      self.postMessage({type:'depth',map:d,w:ow,h:oh,ms:performance.now()-t0,id:m.id},[d.buffer]);
+    }catch(err){ self.postMessage({type:'error',msg:String(err&&err.message||err),run:true}); }
+  }
+};`;
 function updDepthPill(){
   const p=$('dstat'); if(!p) return;
-  if(DEPTH.ready) p.textContent = DEPTH.map? `🧠 עומק פעיל · ${Math.round(DEPTH.ms)}ms` : '🧠 מחשב עומק...';
+  if(DEPTH.ready) p.textContent = DEPTH.map? `🧠 עומק (${DEPTH.device}) ${Math.round(DEPTH.ms)}ms · ${DEPTH.spots} מסתורים` : '🧠 מחשב עומק...';
   else if(DEPTH.loading) p.textContent = `🧠 טוען זיהוי עומק ${Math.round(DEPTH.progress*100)}%`;
   else if(DEPTH.err) p.textContent = '⚠️ עומק לא זמין – מצב בסיסי';
   else p.textContent='🧠';
 }
-async function loadDepth(){
-  if(DEPTH.loading||DEPTH.ready) return; DEPTH.loading=true; updDepthPill();
-  try{
-    const T=window.FAIRY_TEST||{};
-    TF=await import(T.lib||TFLIB);
-    if(T.localModelPath){ TF.env.allowRemoteModels=false; TF.env.allowLocalModels=true; TF.env.localModelPath=T.localModelPath; }
-    if(T.wasmPaths) TF.env.backends.onnx.wasm.wasmPaths=T.wasmPaths;
-    const files={};
-    depthModel=await (TF.AutoModelForDepthEstimation||TF.AutoModel).from_pretrained(T.model||DMODEL,{dtype:'q8',device:'wasm',
-      progress_callback:p=>{ if(p.status==='progress'&&p.total){ files[p.file]=[p.loaded,p.total]; let a=0,b=0; for(const k in files){a+=files[k][0];b+=files[k][1];} DEPTH.progress=b?a/b:0; updDepthPill(); } }});
-    DEPTH.ready=true; DEPTH.loading=false; updDepthPill(); startDepthLoop();
-  }catch(e){ console.warn('depth failed',e); DEPTH.err=e; DEPTH.loading=false; updDepthPill(); }
+const pendingCam={};
+function loadDepth(){
+  if(DEPTH.loading||DEPTH.ready||DEPTH.err) return; DEPTH.loading=true; updDepthPill();
+  const T=window.FAIRY_TEST||{};
+  try{ dWorker=new Worker(URL.createObjectURL(new Blob([WORKER_SRC],{type:'text/javascript'})),{type:'module'}); }
+  catch(e){ DEPTH.err=e; DEPTH.loading=false; updDepthPill(); return; }
+  dWorker.onmessage=e=>{ const m=e.data;
+    if(m.type==='progress'){ DEPTH.progress=m.v; updDepthPill(); }
+    else if(m.type==='ready'){ DEPTH.ready=true; DEPTH.loading=false; DEPTH.device=m.device; updDepthPill(); startDepthLoop(); }
+    else if(m.type==='error'){ console.warn('depth',m.msg); DEPTH.busy=false; if(!m.run){ DEPTH.err=m.msg; DEPTH.loading=false; updDepthPill(); } }
+    else if(m.type==='depth'){ const c=pendingCam[m.id]||{h:camH,v:camV}; delete pendingCam[m.id];
+      DEPTH.map=m.map; DEPTH.w=m.w; DEPTH.h=m.h; DEPTH.camH=c.h; DEPTH.camV=c.v; DEPTH.seq++; DEPTH.busy=false;
+      DEPTH.ms=DEPTH.ms?DEPTH.ms*.7+m.ms*.3:m.ms; maskDirty=true; heatDirty=true; DEPTH.spots=findDepthSpots().length; updDepthPill(); }
+  };
+  dWorker.onerror=e=>{ console.warn('worker',e.message); if(!DEPTH.ready){ DEPTH.err=e.message||'worker'; DEPTH.loading=false; updDepthPill(); } };
+  dWorker.postMessage({type:'load',lib:new URL(T.lib||TFLIB,location.href).href,model:T.model||DMODEL,localModelPath:T.localModelPath?new URL(T.localModelPath,location.href).href:null,wasmPaths:T.wasmPaths?new URL(T.wasmPaths,location.href).href:null,tryGpu:!T.noGpu});
 }
-function startDepthLoop(){ if(DEPTH.running||!DEPTH.ready) return; DEPTH.running=true;
-  (async()=>{ while(screen==='game'){ try{ await depthStep(); }catch(e){ console.warn(e); await new Promise(r=>setTimeout(r,500)); } await new Promise(r=>setTimeout(r,20)); } DEPTH.running=false; })(); }
-async function depthStep(){
-  const r=coverRect(vid,W,H); if(!r){ await new Promise(r=>setTimeout(r,200)); return; }
-  const LONG=322, sc=LONG/Math.max(W,H);
+let depthReqId=0, lastDepthReq=0;
+function startDepthLoop(){ DEPTH.running=true; }
+function depthTick(now){ // called from the animation loop; sends a small frame to the worker when it is free
+  if(!DEPTH.ready||DEPTH.busy||screen!=='game'||now-lastDepthReq<120) return;
+  const r=coverRect(vid,W,H); if(!r) return;
+  const LONG=252, sc=LONG/Math.max(W,H);
   const DW=Math.max(56,Math.round(W*sc/14)*14), DH=Math.max(56,Math.round(H*sc/14)*14);
-  dIn.width=DW; dIn.height=DH;
-  const h0=camH, v0=camV; // camera direction when this frame was taken
+  if(dIn.width!==DW||dIn.height!==DH){ dIn.width=DW; dIn.height=DH; }
   dInCtx.drawImage(vid,r.x*DW/W,r.y*DH/H,r.w*DW/W,r.h*DH/H);
-  const px=dInCtx.getImageData(0,0,DW,DH).data, N=DW*DH, f=new Float32Array(3*N);
-  const M=[.485,.456,.406], S=[.229,.224,.225];
-  for(let i=0;i<N;i++){ const j=i*4; f[i]=(px[j]/255-M[0])/S[0]; f[N+i]=(px[j+1]/255-M[1])/S[1]; f[2*N+i]=(px[j+2]/255-M[2])/S[2]; }
-  const t0=performance.now();
-  const out=await depthModel({pixel_values:new TF.Tensor('float32',f,[1,3,DH,DW])});
-  const pd=out.predicted_depth||Object.values(out)[0]; const dims=pd.dims, oh=dims[dims.length-2], ow=dims[dims.length-1], d=pd.data;
-  // robust normalisation (2%..98%) -> 0 = far, 1 = near
-  const n=ow*oh, sample=[]; for(let i=0;i<n;i+=7) sample.push(d[i]); sample.sort((a,b)=>a-b);
-  const lo=sample[Math.floor(sample.length*.02)], hi=sample[Math.floor(sample.length*.98)]||lo+1, k=1/Math.max(1e-6,hi-lo);
-  const map=new Float32Array(n); for(let i=0;i<n;i++){ const v=(d[i]-lo)*k; map[i]=v<0?0:v>1?1:v; }
-  DEPTH.ms = DEPTH.ms? DEPTH.ms*.7+(performance.now()-t0)*.3 : performance.now()-t0;
-  DEPTH.map=map; DEPTH.w=ow; DEPTH.h=oh; DEPTH.camH=h0; DEPTH.camV=v0; DEPTH.seq++;
-  maskDirty=true; heatDirty=true; updDepthPill();
+  const px=dInCtx.getImageData(0,0,DW,DH).data; const id=++depthReqId; pendingCam[id]={h:camH,v:camV};
+  DEPTH.busy=true; lastDepthReq=now; dWorker.postMessage({type:'run',w:DW,h:DH,px,id},[px.buffer]);
 }
+// depth value (0 far .. 1 near) of the CURRENT screen point, using the latest map re-aligned by the gyro
+function depthAtScreen(x,y){ if(!DEPTH.map) return 0; const o=depthOffset(); const mx=Math.floor((x-o.dx)/W*DEPTH.w), my=Math.floor((y-o.dy)/H*DEPTH.h);
+  if(mx<0||my<0||mx>=DEPTH.w||my>=DEPTH.h) return 0; return DEPTH.map[my*DEPTH.w+mx]; }
 // occlusion mask: opaque where the real scene is NEARER than the fairy
 const mC=document.createElement('canvas'), mCtx=mC.getContext('2d'); let maskDirty=true, maskFd=-1;
 function buildMask(fd){
@@ -210,7 +238,7 @@ function findDepthSpots(){
     for(let x=0;x<w;x++){ let s=0; for(let y=y0;y<y1;y++) s+=D[y*w+x]; prof[x]=s/(y1-y0); }
     const dif=new Float32Array(w);
     for(let x=k;x<w-k;x++){ let L=0,R=0; for(let j=1;j<=k;j++){L+=prof[x-j];R+=prof[x+j];} dif[x]=(L-R)/k; }
-    for(let x=k+1;x<w-k-1;x++){ const a=Math.abs(dif[x]); if(a<.14||a<Math.abs(dif[x-1])||a<Math.abs(dif[x+1])) continue;
+    for(let x=k+1;x<w-k-1;x++){ const a=Math.abs(dif[x]); if(a<.10||a<Math.abs(dif[x-1])||a<Math.abs(dif[x+1])) continue;
       const dir=dif[x]>0?1:-1; // +1: object on the left, she emerges to the right
       const near=dir>0?prof[x-k]:prof[x+k], far=dir>0?prof[x+k]:prof[x-k], thr=far+(near-far)*.5;
       let ow=0; for(let xx=x-dir;xx>=0&&xx<w&&prof[xx]>thr;xx-=dir) ow++;        // object width
@@ -222,7 +250,7 @@ function findDepthSpots(){
     const x0=Math.round(w*(xc-.06)), x1=Math.round(w*(xc+.06)), prof=new Float32Array(h);
     for(let y=0;y<h;y++){ let s=0; for(let x=x0;x<x1;x++) s+=D[y*w+x]; prof[y]=s/(x1-x0); }
     for(let y=Math.round(h*.3);y<h*.9-k;y++){ let A=0,B=0; for(let j=1;j<=k;j++){A+=prof[y-j];B+=prof[y+j];} const df=(B-A)/k;
-      if(df<.14) continue; let A2=0,B2=0; for(let j=1;j<=k;j++){A2+=prof[y-j-1];B2+=prof[y+j-1];}
+      if(df<.10) continue; let A2=0,B2=0; for(let j=1;j<=k;j++){A2+=prof[y-j-1];B2+=prof[y+j-1];}
       if((B2-A2)/k>df) continue;
       const thr=A/k+(df)*.5; let rowW=0; const yy=Math.min(h-1,y+k);
       for(let x=Math.round(xc*w);x<w&&D[yy*w+x]>thr;x++) rowW++; for(let x=Math.round(xc*w)-1;x>=0&&D[yy*w+x]>thr;x--) rowW++;
@@ -235,10 +263,10 @@ function depthSpot(){
   const base=fairyW(); const C=findDepthSpots(); const ok=[];
   for(const c of C){
     if(c.type==='v'){ const w=Math.min(base*1.2,Math.max(base*.45,c.objW*.95)); const h=w*fRatio();
-      if(c.objW<w*.6||c.free<w*.45) continue; if(c.y-h/2<0||c.y+h/2>H) continue;
+      if(c.objW<w*.5||c.free<w*.35) continue; if(c.y-h/2<0||c.y+h/2>H) continue;
       ok.push({...c,w,h,fd:c.far+(c.near-c.far)*.4,score:c.s}); }
     else { const w=Math.min(base*1.2,Math.max(base*.45,c.objW*.9)); const h=w*fRatio();
-      if(c.objW<w*.6||c.objH<h*.25||c.y-h*ARMS<H*.06) continue;
+      if(c.objW<w*.5||c.objH<h*.2||c.y-h*ARMS<H*.06) continue;
       ok.push({...c,w,h,fd:c.far+(c.near-c.far)*.4,score:c.s}); }
   }
   if(!ok.length) return null;
@@ -294,12 +322,12 @@ function geom(now){
     const v=-.08+o*(vis+.08);                          // visible fraction past the object's edge
     const x=bx+s.dir*(v-.5)*w, y=by+Math.sin(now/380)*h*.035-(s.mode==='fly'?Math.sin(Math.min(1,Math.max(0,(t-450)/Math.max(1,fs.hold)))*Math.PI)*h*.25:0);
     const g={x,y,w,h,flip:s.dir<0,rot:s.dir*wig*o};
-    if(!s.depth) g.clip=c=> s.dir>0? c.rect(bx,0,W-bx,H) : c.rect(0,0,bx,H);
+    if(!s.depth){ g.clip=c=> s.dir>0? c.rect(bx,0,W-bx,H) : c.rect(0,0,bx,H); g.clipTest=(px)=> s.dir>0? px>bx : px<bx; }
     return g;
   } else {
     const cy=by+h*.55-o*(h*.55+h*(ARMS-.5));          // from fully below the top edge to arms resting on it
     const g={x:bx+Math.sin(now/500)*w*.03,y:cy,w,h,flip:false,rot:wig*.4*o};
-    if(!s.depth) g.clip=c=>c.rect(0,0,W,by);
+    if(!s.depth){ g.clip=c=>c.rect(0,0,W,by); g.clipTest=(px,py)=>py<by; }
     return g;
   }
 }
@@ -313,11 +341,15 @@ function drawParts(dt){ ctx.save(); ctx.globalCompositeOperation='lighter';
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.r*3,0,6.283); ctx.fill(); }
   ctx.restore(); parts=parts.filter(p=>p.life>0); }
 
-const fC=document.createElement('canvas'), fCtx=fC.getContext('2d',{willReadFrequently:true});
+const fC=document.createElement('canvas'), fCtx=fC.getContext('2d');
+// fairy alpha lookup (small, built once) for hit-testing without reading pixels back
+let fA=null, fAW=0, fAH=0;
+function buildFairyAlpha(){ fAW=96; fAH=Math.round(96*fRatio()); const c=document.createElement('canvas'); c.width=fAW; c.height=fAH; const x=c.getContext('2d'); x.drawImage(fairy,0,0,fAW,fAH); const d=x.getImageData(0,0,fAW,fAH).data; fA=new Uint8Array(fAW*fAH); for(let i=0;i<fA.length;i++) fA[i]=d[i*4+3]; }
 let last=performance.now(), lastSp=0, curG=null, fairyDrawn=false;
 function frame(now){
   const dt=Math.min(50,now-last); last=now;
   if(gyro){ camH=rawH; camV=rawV; }
+  depthTick(now);
   if(screen==='game') gameFrame(now);
   else if(screen==='snap') snapFrame();
   else if(screen==='edit') editFrame();
@@ -325,8 +357,8 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 function renderFairyLayer(g,alpha){
-  if(fC.width!==Math.round(W*DPR)||fC.height!==Math.round(H*DPR)){ fC.width=Math.round(W*DPR); fC.height=Math.round(H*DPR); }
-  fCtx.setTransform(DPR,0,0,DPR,0,0); fCtx.clearRect(0,0,W,H);
+  const FD=Math.min(DPR,1.5); if(fC.width!==Math.round(W*FD)||fC.height!==Math.round(H*FD)){ fC.width=Math.round(W*FD); fC.height=Math.round(H*FD); }
+  fCtx.setTransform(FD,0,0,FD,0,0); fCtx.clearRect(0,0,W,H);
   drawFairy(fCtx,g.x,g.y,g.w,{flip:g.flip,rot:g.rot,clip:g.clip,alpha,bright:.75+sceneLum*.6});
   if(fs.spot.depth && DEPTH.map){ // real occlusion: erase every pixel where the scene is nearer than the fairy
     if(maskDirty||maskFd!==fs.spot.fd) buildMask(fs.spot.fd);
@@ -352,7 +384,14 @@ function gameFrame(now){
       if(now-lastSp>110 && fs.phase==='out'){ lastSp=now; const p=visiblePoint(g); if(p) spark(p.x,p.y,1,1); } }
   }
 }
-function alphaAt(x,y){ try{ return fCtx.getImageData(Math.round(x*DPR),Math.round(y*DPR),1,1).data[3]; }catch(e){ return 0; } }
+function alphaAt(x,y){ const g=curG; if(!g) return 0; if(!fA) buildFairyAlpha();
+  // inverse of the fairy's transform
+  let dx=x-g.x, dy=y-g.y; const c=Math.cos(-(g.rot||0)), s=Math.sin(-(g.rot||0)); let u=dx*c-dy*s, v=dx*s+dy*c; if(g.flip) u=-u;
+  const ix=Math.floor((u/g.w+.5)*fAW), iy=Math.floor((v/g.h+.5)*fAH); if(ix<0||iy<0||ix>=fAW||iy>=fAH) return 0;
+  let a=fA[iy*fAW+ix];
+  if(g.clipTest && !g.clipTest(x,y)) return 0;
+  if(fs.spot&&fs.spot.depth&&DEPTH.map){ const dv=depthAtScreen(x,y); if(dv>fs.spot.fd+.04) return 0; }
+  return a; }
 function visiblePoint(g){ for(let i=0;i<6;i++){ const x=g.x+rnd(-g.w*.4,g.w*.4), y=g.y+rnd(-g.h*.4,g.h*.3); if(alphaAt(x,y)>60) return {x,y}; } return null; }
 function updHud(){ $('score').textContent='⭐ '+score; $('miss').textContent='ברחה '+miss; }
 const CHEERS=['תפסת אותי! 😄','מצאת אותי ✨','וואו, מהיר! ⚡','אוי, נתפסתי! 🧚','עוד פעם! 🌟'];
