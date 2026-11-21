@@ -1,0 +1,146 @@
+import { useState, useEffect, useRef } from 'react';
+import { useAudio } from '../hooks/useAudio';
+import { NIKUD_META } from '../data/curriculum';
+
+function splitExample(example) {
+  const word  = example.replace(/[^א-ת\s]/g, '').trim();
+  const emoji = example.replace(/[א-ת \-\s]/g, '').trim();
+  return { word, emoji };
+}
+
+const GROUP_STYLES = {
+  A: {
+    tile:  'bg-gradient-to-br from-amber-400 via-orange-400 to-amber-500',
+    text:  'text-white',
+    sub:   'text-amber-100',
+    badge: 'bg-black/20 text-white',
+    ring:  'border-amber-200',
+    spark: '#FBBF24',
+  },
+  E: {
+    tile:  'bg-gradient-to-br from-rose-400 via-pink-500 to-rose-500',
+    text:  'text-white',
+    sub:   'text-rose-100',
+    badge: 'bg-black/20 text-white',
+    ring:  'border-rose-200',
+    spark: '#F472B6',
+  },
+  I: {
+    tile:  'bg-gradient-to-br from-indigo-400 via-blue-500 to-indigo-500',
+    text:  'text-white',
+    sub:   'text-indigo-100',
+    badge: 'bg-black/20 text-white',
+    ring:  'border-indigo-200',
+    spark: '#818CF8',
+  },
+  O: {
+    tile:  'bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-500',
+    text:  'text-white',
+    sub:   'text-emerald-100',
+    badge: 'bg-black/20 text-white',
+    ring:  'border-emerald-200',
+    spark: '#34D399',
+  },
+  U: {
+    tile:  'bg-gradient-to-br from-violet-500 via-purple-600 to-fuchsia-600',
+    text:  'text-white',
+    sub:   'text-violet-100',
+    badge: 'bg-black/20 text-white',
+    ring:  'border-violet-200',
+    spark: '#A78BFA',
+  },
+};
+
+export default function NikudTile({ nikudType, data, onHear, heard, lessonId }) {
+  const { playLessonTile } = useAudio();
+  const [playing,   setPlaying]   = useState(false);
+  const [animHit,   setAnimHit]   = useState(false);
+  const [showBurst, setShowBurst] = useState(false);
+  const prevHeard = useRef(heard);
+  const meta   = NIKUD_META[nikudType];
+  const gs     = GROUP_STYLES[meta.group];
+
+  useEffect(() => {
+    if (heard && !prevHeard.current) {
+      setShowBurst(true);
+      setTimeout(() => setShowBurst(false), 700);
+    }
+    prevHeard.current = heard;
+  }, [heard]);
+
+  function handlePlay(e) {
+    e.stopPropagation();
+    setPlaying(true);
+    setAnimHit(true);
+    const wordOnly = data.example.replace(/[^א-ת\s]/g, '').trim();
+    playLessonTile(lessonId, nikudType, wordOnly || data.display);
+    onHear(nikudType);
+    setTimeout(() => setPlaying(false), 700);
+    setTimeout(() => setAnimHit(false),  400);
+  }
+
+  return (
+    <div className="relative w-full">
+      <button
+        onClick={handlePlay}
+        className={`
+          relative flex flex-col items-center gap-1.5 p-3 rounded-2xl w-full
+          cursor-pointer select-none transition-all duration-150
+          hover:scale-105 hover:-translate-y-0.5
+          active:scale-95
+          ${gs.tile}
+          tile-glow-${meta.group}
+          ${animHit ? 'animate-tile-hit' : ''}
+          ${playing ? 'scale-105' : ''}
+        `}
+      >
+        {/* Heard badge */}
+        {heard && (
+          <span className="absolute -top-2.5 -right-2.5 bg-green-400 text-white text-xs w-7 h-7 rounded-full flex items-center justify-center shadow-lg z-10 font-black border-2 border-white animate-pop-in">
+            ✓
+          </span>
+        )}
+
+        {/* Letter + nikud */}
+        <div
+          className={`font-rubik font-black leading-none ${gs.text} transition-transform duration-100 drop-shadow-sm`}
+          style={{ fontSize: '3rem', lineHeight: '3.8rem', direction: 'rtl' }}
+        >
+          {data.display}
+        </div>
+
+        {/* Group label */}
+        <div className={`text-xs font-black font-rubik px-2 py-0.5 rounded-full ${gs.badge}`}>
+          {meta.groupLabel}
+        </div>
+
+        {/* Example */}
+        {(() => {
+          const { word, emoji } = splitExample(data.example);
+          return (
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-4xl leading-none select-none">{emoji}</span>
+              <span className={`text-xs font-assistant text-center leading-tight ${gs.sub}`}>{word}</span>
+            </div>
+          );
+        })()}
+
+        {/* Playing pulse ring */}
+        {playing && (
+          <div className={`absolute inset-0 rounded-2xl border-4 animate-ping opacity-50 pointer-events-none ${gs.ring}`} />
+        )}
+      </button>
+
+      {/* Sparkle burst ring on first hear */}
+      {showBurst && (
+        <div
+          className="absolute inset-0 rounded-2xl pointer-events-none z-20"
+          style={{
+            border: `3px solid ${gs.spark}`,
+            animation: 'ringBurst 0.6s ease-out forwards',
+          }}
+        />
+      )}
+    </div>
+  );
+}
